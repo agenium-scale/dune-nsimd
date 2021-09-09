@@ -1,0 +1,11 @@
+################################
+# Dune module information file #
+################################
+
+#Name of the module
+Module: dune-vectorclass
+Version: Module
+Maintainer: l_rene02@uni-muenster.de
+#depending on
+Depends: dune-common
+Suggests: dune-istl

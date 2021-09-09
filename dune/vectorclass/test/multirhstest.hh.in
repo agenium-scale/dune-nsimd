@@ -1,0 +1,64 @@
+#ifndef DUNE_VECTORCLASS_TEST_MULTIRHSTEST_HH
+#define DUNE_VECTORCLASS_TEST_MULTIRHSTEST_HH
+
+#include <string>
+
+#include <dune/common/classname.hh>
+#include <dune/common/simd/loop.hh>
+#include <dune/common/simd/simd.hh>
+#include <dune/common/timer.hh>
+
+#include <dune/istl/test/multirhstest.hh>
+
+#include <dune/vectorclass/vectorclass.hh>
+
+struct runInformation {
+  double vectorTime;
+  double scalarTime;
+  double loopTime;
+
+  std::string vectorName;
+  std::string scalarName;
+  std::string loopName;
+
+  int lanes;
+};
+
+template<class T>
+runInformation performTest(){
+  runInformation result;
+
+  const int size = Dune::Simd::lanes<T>();
+  typedef Dune::Simd::Scalar<T> scalarType;
+  typedef Dune::LoopSIMD<scalarType,size> loopType;
+
+  result.vectorName = Dune::className<T>();
+  result.scalarName = Dune::className<scalarType>();
+  result.loopName = Dune::className<loopType>();
+  result.lanes = size;
+
+  Dune::Timer t;
+
+  test_all<T>();
+  result.vectorTime = t.stop();
+
+  t.reset();
+  t.start();
+  test_all<scalarType>();
+  result.scalarTime = t.stop();
+
+  t.reset();
+  t.start();
+  test_all<loopType>();
+  result.loopTime = t.stop();
+
+  return result;
+}
+
+#cmake @template@
+#if MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+extern template runInformation performTest<Vec@LANES@@TYPE@>();
+#endif // MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+#cmake @endtemplate@
+
+#endif // DUNE_VECTORCLASS_TEST_MULTIRHSTEST_HH

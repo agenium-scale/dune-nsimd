@@ -1,0 +1,29 @@
+// @GENERATED_SOURCE@
+
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include <cstddef>
+#include <cstdlib>
+
+#include <dune/common/simd/test.hh>
+#include <dune/common/typelist.hh>
+
+#include <dune/vectorclass/test/vectorclasstest.hh>
+#include <dune/vectorclass/vectorclass.hh>
+
+using Rebinds = Dune::TypeList<bool, int, long, float, double>;
+
+int main() {
+  Dune::Simd::UnitTest test;
+
+#cmake @template@
+#if MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+  test.check<Vec@LANES@@TYPE@, Rebinds>();
+  test.check<Vec@LANES@@TYPE@b, Rebinds>();
+#endif // MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+#cmake @endtemplate@
+
+  return test.good() ? EXIT_SUCCESS : EXIT_FAILURE;
+}

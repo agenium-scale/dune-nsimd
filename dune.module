@@ -3,7 +3,7 @@
 ################################
 
 #Name of the module
-Module: dune-vectorclass
+Module: dune-nsimd
 Version: Module
 Maintainer: l_rene02@uni-muenster.de
 #depending on

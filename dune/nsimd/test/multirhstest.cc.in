@@ -1,0 +1,41 @@
+#include "config.h"
+
+#include <iostream>
+#include <vector>
+
+// includes nsimd.hh
+#include "multirhstest.hh"
+
+int  main(int argc, char ** argv)
+{
+
+  std::vector<runInformation> times;
+
+#cmake @template@
+#if MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+  times.push_back(performTest<Vec@LANES@@TYPE@>());
+#endif // MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+#cmake @endtemplate@
+
+  for(auto el : times) {
+    double totalScalarTime = el.lanes * el.scalarTime;
+    double vectorTimePerLane = el.vectorTime/el.lanes;
+
+    std::cout << "========================================" << std::endl;
+    std::cout << "Time(" << el.vectorName << "): " << el.vectorTime << std::endl;
+    std::cout << "Time(" << el.scalarName << "): " << totalScalarTime << std::endl;
+    std::cout << "Difference (total): " << totalScalarTime-el.vectorTime << std::endl;
+    std::cout << "Difference (per lane): " << (totalScalarTime-el.vectorTime) / el.lanes << std::endl;
+    std::cout << "Difference (relative): " << (totalScalarTime-el.vectorTime)/el.vectorTime * 100 << "%" << std::endl;
+    std::cout << (el.scalarTime-vectorTimePerLane)/vectorTimePerLane / (el.lanes-1) << "% of expected difference reached" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Time(" << el.vectorName << "): " << el.vectorTime << std::endl;
+    std::cout << "Time(" << el.loopName << "): " << el.loopTime << std::endl;
+    std::cout << "Difference (total): " << el.loopTime-el.vectorTime << std::endl;
+    std::cout << "Difference (per lane): " << (el.loopTime-el.vectorTime) / el.lanes << std::endl;
+    std::cout << "Difference (relative): " << (el.loopTime-el.vectorTime)/el.vectorTime * 100 << "%" << std::endl;
+  }
+  std::cout << "========================================" << std::endl;
+
+  return 0;
+}

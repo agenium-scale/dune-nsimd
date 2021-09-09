@@ -1,0 +1,8 @@
+#include "config.h"
+
+// includes nsimd.hh
+#include "multirhstest.hh"
+
+#if MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+template runInformation performTest<Vec@LANES@@TYPE@>();
+#endif // MAX_VECTOR_SIZE >= @VECTOR_SIZE@

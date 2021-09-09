@@ -1,0 +1,23 @@
+// @GENERATED_SOURCE@
+
+#ifndef DUNE_NSIMD_TEST_NSIMDTEST_HH
+#define DUNE_NSIMD_TEST_NSIMDTEST_HH
+
+#include <dune/common/simd/test.hh>
+
+#include <dune/nsimd/nsimd.hh>
+
+namespace Dune {
+  namespace Simd {
+
+#cmake @template POINT@
+#if MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+    extern template void UnitTest::check@POINT@<Vec@LANES@@TYPE@>();
+    extern template void UnitTest::check@POINT@<Vec@LANES@@TYPE@b>();
+#endif // MAX_VECTOR_SIZE >= @VECTOR_SIZE@
+#cmake @endtemplate@
+
+  }
+}
+
+#endif

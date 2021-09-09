@@ -1,1 +1,1 @@
-add_subdirectory(vectorclass)
+add_subdirectory(nsimd)

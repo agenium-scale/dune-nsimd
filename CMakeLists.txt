@@ -1,7 +1,7 @@
 # We require version CMake version 3.1 to prevent issues
 # with dune_enable_all_packages and older CMake versions.
 cmake_minimum_required(VERSION 3.1)
-project(dune-vectorclass CXX)
+project(dune-nsimd CXX)
 
 if(NOT (dune-common_DIR OR dune-common_ROOT OR
       "${CMAKE_PREFIX_PATH}" MATCHES ".*dune-common.*"))

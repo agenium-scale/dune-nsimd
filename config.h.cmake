@@ -1,4 +1,4 @@
-/* begin dune-vectorclass
+/* begin dune-nsimd
    put the definitions for config.h specific to
    your project here. Everything above will be
    overwritten
@@ -28,18 +28,18 @@
 
 /* end private */
 
-/* Define to the version of dune-vectorclass */
-#define DUNE_VECTORCLASS_VERSION "@DUNE_VECTORCLASS_VERSION@"
+/* Define to the version of dune-nsimd */
+#define DUNE_NSIMD_VERSION "@DUNE_NSIMD_VERSION@"
 
-/* Define to the major version of dune-vectorclass */
-#define DUNE_VECTORCLASS_VERSION_MAJOR @DUNE_VECTORCLASS_VERSION_MAJOR@
+/* Define to the major version of dune-nsimd */
+#define DUNE_NSIMD_VERSION_MAJOR @DUNE_NSIMD_VERSION_MAJOR@
 
-/* Define to the minor version of dune-vectorclass */
-#define DUNE_VECTORCLASS_VERSION_MINOR @DUNE_VECTORCLASS_VERSION_MINOR@
+/* Define to the minor version of dune-nsimd */
+#define DUNE_NSIMD_VERSION_MINOR @DUNE_NSIMD_VERSION_MINOR@
 
-/* Define to the revision of dune-vectorclass */
-#define DUNE_VECTORCLASS_VERSION_REVISION @DUNE_VECTORCLASS_VERSION_REVISION@
+/* Define to the revision of dune-nsimd */
+#define DUNE_NSIMD_VERSION_REVISION @DUNE_NSIMD_VERSION_REVISION@
 
-/* end dune-vectorclass
+/* end dune-nsimd
    Everything below here will be overwritten
 */

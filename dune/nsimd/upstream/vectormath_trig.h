@@ -28,8 +28,8 @@
 
 #include "vectormath_common.h"
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 // Different overloaded functions for template resolution.
@@ -1042,7 +1042,7 @@ static inline Vec16f atan(Vec16f const & y) {
 
 #endif // MAX_VECTOR_SIZE >= 512
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

@@ -34,8 +34,8 @@
 
 #include "vectorf128.h"  // Define 128-bit vectors
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /*****************************************************************************
@@ -2135,7 +2135,7 @@ static inline Vec4db to_Vec4db(uint8_t x) {
     return Vec4db(to_Vec4qb(x));
 }
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

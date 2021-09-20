@@ -36,8 +36,8 @@
 
 #include <math.h>
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /*****************************************************************************
@@ -2109,7 +2109,7 @@ static inline Vec4d cexp (Vec4d const & x) {   // complex exponential function
 
 #endif // VECTORF256_H == 1
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

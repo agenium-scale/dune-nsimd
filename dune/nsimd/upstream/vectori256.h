@@ -58,8 +58,8 @@
 
 #include "vectori128.h"
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /*****************************************************************************
@@ -5639,7 +5639,7 @@ static inline Vec4qb to_Vec4qb(uint8_t x);
 
 #endif  // INSTRSET < 9 || MAX_VECTOR_SIZE < 512
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

@@ -51,8 +51,8 @@
 #define VM_SMALLEST_NORMAL  2.2250738585072014E-308  // smallest normal number, double
 #define VM_SMALLEST_NORMALF 1.17549435E-38f          // smallest normal number, float
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /******************************************************************************
@@ -311,7 +311,7 @@ static inline VTYPE polynomial_13m(VTYPE const & x, CTYPE c2, CTYPE c3, CTYPE c4
         mul_add(mul_add(mul_add(c7, x, c6), x2, mul_add(c5, x, c4)), x4, mul_add(mul_add(c3, x, c2), x2, x)));
 }
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

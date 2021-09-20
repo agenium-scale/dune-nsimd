@@ -36,8 +36,8 @@
 #else
 #define VECTORI512_H  1
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /*****************************************************************************
@@ -2610,7 +2610,7 @@ static inline Vec8qb to_Vec8qb(uint8_t x) {
     return Vec8q(to_Vec4qb(x), to_Vec4qb(x>>4));
 }
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

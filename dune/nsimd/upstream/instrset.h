@@ -28,55 +28,25 @@
 // Find instruction set from compiler macros if INSTRSET not defined
 // Note: Most of these macros are not defined in Microsoft compilers
 #ifndef INSTRSET
-#if defined ( __AVX512F__ ) || defined ( __AVX512__ )
+#if defined ( NSIMD_AVX512_KNL ) || defined ( NSIMD_AVX512_SKYLAKE )
 #define INSTRSET 9
-#elif defined ( __AVX2__ )
+#elif defined ( NSIMD_AVX2 )
 #define INSTRSET 8
-#elif defined ( __AVX__ )
+#elif defined ( NSIMD_AVX )
 #define INSTRSET 7
-#elif defined ( __SSE4_2__ )
+#elif defined ( NSIMD_SSE42 )
 #define INSTRSET 6
-#elif defined ( __SSE4_1__ )
-#define INSTRSET 5
-#elif defined ( __SSSE3__ )
-#define INSTRSET 4
-#elif defined ( __SSE3__ )
-#define INSTRSET 3
-#elif defined ( __SSE2__ ) || defined ( __x86_64__ )
+#elif defined ( NSIMD_SSE2 ) || defined ( __x86_64__ )
 #define INSTRSET 2
-#elif defined ( __SSE__ )
-#define INSTRSET 1
-#elif defined ( _M_IX86_FP )           // Defined in MS compiler. 1: SSE, 2: SSE2
-#define INSTRSET _M_IX86_FP
 #else 
 #define INSTRSET 0
 #endif // instruction set defines
 #endif // INSTRSET
 
 // Include the appropriate header file for intrinsic functions
-#if INSTRSET > 7                       // AVX2 and later
-#if defined (__GNUC__) && ! defined (__INTEL_COMPILER)
-#include <x86intrin.h>                 // x86intrin.h includes header files for whatever instruction 
-                                       // sets are specified on the compiler command line, such as:
-                                       // xopintrin.h, fma4intrin.h
-#else
-#include <immintrin.h>                 // MS version of immintrin.h covers AVX, AVX2 and FMA3
-#endif // __GNUC__
-#elif INSTRSET == 7
-#include <immintrin.h>                 // AVX
-#elif INSTRSET == 6
-#include <nmmintrin.h>                 // SSE4.2
-#elif INSTRSET == 5
-#include <smmintrin.h>                 // SSE4.1
-#elif INSTRSET == 4
-#include <tmmintrin.h>                 // SSSE3
-#elif INSTRSET == 3
-#include <pmmintrin.h>                 // SSE3
-#elif INSTRSET == 2
-#include <emmintrin.h>                 // SSE2
-#elif INSTRSET == 1
-#include <xmmintrin.h>                 // SSE
-#endif // INSTRSET
+#include <nsimd/cxx_adv_api.hpp>
+#include <nsimd/cxx_adv_api_functions.hpp>
+#include <nsimd/nsimd.h>
 
 #if INSTRSET >= 8 && !defined(__FMA__)
 // Assume that all processors that have AVX2 also have FMA3
@@ -87,28 +57,6 @@
 #define __FMA__  1
 #endif
 #endif
-
-// AMD  instruction sets
-#if defined (__XOP__) || defined (__FMA4__)
-#ifdef __GNUC__
-#include <x86intrin.h>                 // AMD XOP (Gnu)
-#else
-#include <ammintrin.h>                 // AMD XOP (Microsoft)
-#endif //  __GNUC__
-#elif defined (__SSE4A__)              // AMD SSE4A
-#include <ammintrin.h>
-#endif // __XOP__ 
-
-// FMA3 instruction set
-#if defined (__FMA__) && (defined(__GNUC__) || defined(__clang__))  && ! defined (__INTEL_COMPILER)
-#include <fmaintrin.h> 
-#endif // __FMA__ 
-
-// FMA4 instruction set
-#if defined (__FMA4__) && (defined(__GNUC__) || defined(__clang__))
-#include <fma4intrin.h> // must have both x86intrin.h and fma4intrin.h, don't know why
-#endif // __FMA4__
-
 
 // Define integer types with known size
 #if defined(__GNUC__) || defined(__clang__) || (defined(_MSC_VER) && _MSC_VER >= 1600)
@@ -156,15 +104,15 @@
 #endif // _MSC_VER
 
 // functions in instrset_detect.cpp
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
     int  instrset_detect(void);                      // tells which instruction sets are supported
     bool hasFMA3(void);                              // true if FMA3 instructions supported
     bool hasFMA4(void);                              // true if FMA4 instructions supported
     bool hasXOP(void);                               // true if XOP  instructions supported
     bool hasAVX512ER(void);                          // true if AVX512ER instructions supported
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 
@@ -192,8 +140,8 @@ namespace VCL_NAMESPACE {
 #endif
 #endif
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
     // Template class to represent compile-time integer constant
     template <int32_t  n> class Const_int_t {};       // represent compile-time signed integer constant
@@ -208,7 +156,7 @@ namespace VCL_NAMESPACE {
     template <> class Static_error_check<false> {     // generate compile-time error if false
     private: Static_error_check() {};
     };
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif 
 

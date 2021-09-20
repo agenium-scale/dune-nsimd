@@ -43,8 +43,8 @@
 
 #include "vectori128.h"
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /*****************************************************************************
@@ -4399,7 +4399,7 @@ static inline Vec4qb to_Vec4qb(uint8_t x) {
     return Vec4q(to_Vec2qb(x), to_Vec2qb(x>>2));
 }
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

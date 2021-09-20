@@ -50,8 +50,8 @@
 #error Please compile for the SSE2 instruction set or higher
 #endif
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 /*****************************************************************************
@@ -6296,7 +6296,7 @@ static inline Vec2qb to_Vec2qb(uint8_t x);
 
 #endif  // INSTRSET < 9 || MAX_VECTOR_SIZE < 512
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

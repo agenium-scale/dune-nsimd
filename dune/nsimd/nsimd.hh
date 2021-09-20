@@ -486,8 +486,8 @@ namespace Dune {
 
 } //namespace Dune
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
   template<class Vec,
@@ -714,8 +714,8 @@ namespace VCL_NAMESPACE {
 #undef DUNE_NSIMD_OPINFIX_VV
 #undef DUNE_NSIMD_OPINFIX_VS
 
-#ifdef VCL_NAMESPACE
-} // namespace VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
+} // namespace NSIMD_NAMESPACE
 #endif
 
 #endif //DUNE_NSIMD_NSIMD_HH

@@ -47,8 +47,8 @@
 
 #include "vectori256.h"
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 // Bug fix for missing intrinsics:
@@ -2830,7 +2830,7 @@ static inline Vec8qb to_Vec8qb(uint8_t x) {
     return (__mmask16)x;
 }
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

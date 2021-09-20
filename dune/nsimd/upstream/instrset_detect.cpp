@@ -12,8 +12,8 @@
 
 #include "instrset.h"
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 // Define interface to cpuid instruction.
@@ -81,17 +81,12 @@ static inline int64_t xgetbv (int ctr) {
 /* find supported instruction set
     return value:
     0           = 80386 instruction set
-    1  or above = SSE (XMM) supported by CPU (not testing for O.S. support)
-    2  or above = SSE2
-    3  or above = SSE3
-    4  or above = Supplementary SSE3 (SSSE3)
-    5  or above = SSE4.1
-    6  or above = SSE4.2
-    7  or above = AVX supported by CPU and operating system
-    8  or above = AVX2
-    9  or above = AVX512F
-    10 or above = AVX512VL
-    11 or above = AVX512BW, AVX512DQ
+    2  or above = NSIMD_SSE2
+    6  or above = NSIMD_SSE42
+    7  or above = NSIMD_AVX supported by CPU and operating system
+    8  or above = NSIMD_AVX2
+    9  or above = NSIMD_AVX512_SKYLAKE
+    9  or above = NSIMD_AVX512_KNL
 */
 int instrset_detect(void) {
 
@@ -181,6 +176,6 @@ bool hasAVX512ER(void) {
 }
 
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif

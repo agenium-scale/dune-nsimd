@@ -14,6 +14,9 @@ find_package(dune-common REQUIRED)
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules"
   ${dune-common_MODULE_PATH})
 
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/scripts")
+find_package(NSIMD COMPONENTS "${SIMD_EXT}" REQUIRED)
+
 #include the dune macros
 include(DuneMacros)
 

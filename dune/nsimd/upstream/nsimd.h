@@ -24,8 +24,8 @@
 *
 * (c) Copyright 2012-2017 GNU General Public License www.gnu.org/licenses
 ******************************************************************************/
-#ifndef NSIMD_H
-#define NSIMD_H  129
+#ifndef NSIMD_UPSTREAM_H
+#define NSIMD_UPSTREAM_H  129
 
 // Maximum vector size, bits. Allowed values are 128, 256, 512
 #ifndef MAX_VECTOR_SIZE
@@ -66,4 +66,4 @@
 
 #endif  // INSTRSET >= 2
 
-#endif  // NSIMD_H
+#endif  // NSIMD_UPSTREAM_H

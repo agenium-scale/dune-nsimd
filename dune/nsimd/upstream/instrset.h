@@ -46,6 +46,7 @@
 // Include the appropriate header file for intrinsic functions
 #include <nsimd/cxx_adv_api.hpp>
 #include <nsimd/cxx_adv_api_functions.hpp>
+//#include <nsimd/nsimd-all.hpp>
 #include <nsimd/nsimd.h>
 
 #if INSTRSET >= 8 && !defined(__FMA__)

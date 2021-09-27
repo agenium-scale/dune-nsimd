@@ -36,8 +36,8 @@
 
 #include "vectori512.h"
 
-#ifdef VCL_NAMESPACE
-namespace VCL_NAMESPACE {
+#ifdef NSIMD_NAMESPACE
+namespace NSIMD_NAMESPACE {
 #endif
 
 // Define missing intrinsic functions
@@ -2480,7 +2480,7 @@ static inline Vec8db to_Vec8db(uint8_t x) {
     return Vec8db(to_Vec8qb(x));
 }
 
-#ifdef VCL_NAMESPACE
+#ifdef NSIMD_NAMESPACE
 }
 #endif
 

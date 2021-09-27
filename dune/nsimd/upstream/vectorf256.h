@@ -48,38 +48,26 @@
 namespace NSIMD_NAMESPACE {
 #endif
 
-#if defined(NSIMD_AVX)
-typedef nsimd::pack<float, 1, nsimd::avx> pack4f_t;
-typedef nsimd::packl<float, 1, nsimd::avx> packl4f_t;
-typedef nsimd::pack<double, 1, nsimd::avx> pack4d_t;
-typedef nsimd::packl<double, 1, nsimd::avx> packl4d_t;
-#else
-typedef nsimd::pack<float, 1, nsimd::avx2> pack4f_t;
-typedef nsimd::packl<float, 1, nsimd::avx2> packl4f_t;
-typedef nsimd::pack<double, 1, nsimd::avx2> pack4d_t;
-typedef nsimd::packl<double, 1, nsimd::avx2> packl4d_t;
-#endif
-
 /*****************************************************************************
 *
 *          select functions
 *
 *****************************************************************************/
-// Select between two pack4f_t sources, element by element. Used in various functions 
+// Select between two __m256 sources, element by element. Used in various functions 
 // and operators. Corresponds to this pseudocode:
 // for (int i = 0; i < 8; i++) result[i] = s[i] ? a[i] : b[i];
 // Each element in s must be either 0 (false) or 0xFFFFFFFF (true).
-static inline pack4f_t selectf (pack4f_t const & s, pack4f_t const & a, pack4f_t const & b) {
-    return nsimd::if_else1 (b, a, s);
+static inline __m256 selectf (__m256 const & s, __m256 const & a, __m256 const & b) {
+    return _mm256_blendv_ps (b, a, s);
 }
 
-// Same, with two pack4d_t sources.
+// Same, with two __m256d sources.
 // and operators. Corresponds to this pseudocode:
 // for (int i = 0; i < 4; i++) result[i] = s[i] ? a[i] : b[i];
 // Each element in s must be either 0 (false) or 0xFFFFFFFFFFFFFFFF (true). No other 
 // values are allowed.
-static inline pack4d_t selectd (pack4d_t const & s, pack4d_t const & a, pack4d_t const & b) {
-    return nsimd::if_else1 (b, a, s);
+static inline __m256d selectd (__m256d const & s, __m256d const & a, __m256d const & b) {
+    return _mm256_blendv_pd (b, a, s);
 }
 
 
@@ -92,10 +80,10 @@ static inline pack4d_t selectd (pack4d_t const & s, pack4d_t const & a, pack4d_t
 // Generate a constant vector of 8 integers stored in memory,
 // load as __m256
 template <int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7>
-static inline nsimd::pack<float> constant8f() {
+static inline __m256 constant8f() {
     static const union {
         int     i[8];
-        pack4f_t  ymm;
+        __m256  ymm;
     } u = {{i0,i1,i2,i3,i4,i5,i6,i7}};
     return u.ymm;
 }
@@ -138,11 +126,11 @@ public:
         ymm = set_m128r(a0, a1);
     }
     // Constructor to convert from type __m256 used in intrinsics:
-    Vec8fb(pack4f_t const & x) {
+    Vec8fb(__m256 const & x) {
         ymm = x;
     }
     // Assignment operator to convert from type __m256 used in intrinsics:
-    Vec8fb & operator = (pack4f_t const & x) {
+    Vec8fb & operator = (__m256 const & x) {
         ymm = x;
         return *this;
     }
@@ -151,7 +139,7 @@ public:
 #if INSTRSET >= 8  // AVX2
         ymm = _mm256_castsi256_ps(_mm256_set1_epi32(-(int)b));
 #else
-        __m128 b1 = _mm_castsi128_ps(nsimd::set1<nsimd::pack<int>>(-(int)b));
+        __m128 b1 = _mm_castsi128_ps(_mm_set1_epi32(-(int)b));
         //ymm = _mm256_set_m128(b1,b1);
         ymm = set_m128r(b1,b1);
 #endif
@@ -166,7 +154,7 @@ private: // Prevent constructing from int, etc.
     Vec8fb & operator = (int x);
 public:
     // Type cast operator to convert to __m256 used in intrinsics
-    operator pack4f_t() const {
+    operator __m256() const {
         return ymm;
     }
 #if defined (VECTORI256_H)
@@ -206,12 +194,12 @@ public:
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec8fb const & insert(uint32_t index, bool value) {
         static const int32_t maskl[16] = {0,0,0,0,0,0,0,0,-1,0,0,0,0,0,0,0};
-        __m256 mask  = nsimd::loadu((float const*)(maskl+8-(index & 7))); // mask with FFFFFFFF at index position
+        __m256 mask  = _mm256_loadu_ps((float const*)(maskl+8-(index & 7))); // mask with FFFFFFFF at index position
         if (value) {
-            ymm = nsimd::orb(ymm,mask);
+            ymm = _mm256_or_ps(ymm,mask);
         }
         else {
-            ymm = nsimd::andnotb(mask,ymm);
+            ymm = _mm256_andnot_ps(mask,ymm);
         }
         return *this;
     }
@@ -221,7 +209,7 @@ public:
             float   f[8];
             int32_t i[8];
         } u;
-        nsimd::storeu(u.f, ymm);
+        _mm256_storeu_ps(u.f, ymm);
         return u.i[index & 7] != 0;
     }
     // Extract a single element. Operator [] can only read an element, not write.
@@ -249,7 +237,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec8fb operator & (Vec8fb const & a, Vec8fb const & b) {
-    return nsimd::andb(a, b);
+    return _mm256_and_ps(a, b);
 }
 static inline Vec8fb operator && (Vec8fb const & a, Vec8fb const & b) {
     return a & b;
@@ -263,7 +251,7 @@ static inline Vec8fb & operator &= (Vec8fb & a, Vec8fb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec8fb operator | (Vec8fb const & a, Vec8fb const & b) {
-    return nsimd::orb(a, b);
+    return _mm256_or_ps(a, b);
 }
 static inline Vec8fb operator || (Vec8fb const & a, Vec8fb const & b) {
     return a | b;
@@ -277,7 +265,7 @@ static inline Vec8fb & operator |= (Vec8fb & a, Vec8fb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec8fb operator ^ (Vec8fb const & a, Vec8fb const & b) {
-    return nsimd::xorb(a, b);
+    return _mm256_xor_ps(a, b);
 }
 
 // vector operator ^= : bitwise xor
@@ -288,7 +276,7 @@ static inline Vec8fb & operator ^= (Vec8fb & a, Vec8fb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec8fb operator ~ (Vec8fb const & a) {
-    return nsimd::xorb(a, constant8f<-1,-1,-1,-1,-1,-1,-1,-1>());
+    return _mm256_xor_ps(a, constant8f<-1,-1,-1,-1,-1,-1,-1,-1>());
 }
 
 // vector operator ! : logical not
@@ -302,7 +290,7 @@ return Vec8fb( !Vec8ib(a));
 
 // andnot: a & ~ b
 static inline Vec8fb andnot(Vec8fb const & a, Vec8fb const & b) {
-    return nsimd::andnotb(b, a);
+    return _mm256_andnot_ps(b, a);
 }
 
 
@@ -332,7 +320,7 @@ static inline bool horizontal_or (Vec8fb const & a) {
 
 class Vec4db {
 protected:
-    pack4f_t ymm; // double vector
+    __m256d ymm; // double vector
 public:
     // Default constructor:
     Vec4db() {
@@ -353,7 +341,7 @@ public:
         //ymm = _mm256_set_m128d(a1, a0);
     }
     // Constructor to convert from type __m256d used in intrinsics:
-    Vec4db(pack4f_t const & x) {
+    Vec4db(__m256d const & x) {
         ymm = x;
     }
     // Assignment operator to convert from type __m256d used in intrinsics:
@@ -372,7 +360,7 @@ public:
     }
     // Assignment operator to broadcast scalar value:
     Vec4db & operator = (bool b) {
-        ymm = _mm256_castsi256_pd(nsimd::set1<nsimd::pack<int>>(-int32_t(b)));
+        ymm = _mm256_castsi256_pd(_mm256_set1_epi32(-int32_t(b)));
         return *this;
     }
 private: // Prevent constructing from int, etc.
@@ -380,7 +368,7 @@ private: // Prevent constructing from int, etc.
     Vec4db & operator = (int x);
 public:
     // Type cast operator to convert to __m256d used in intrinsics
-    operator pack4d_t() const {
+    operator __m256d() const {
         return ymm;
     }
 #ifdef VECTORI256_H  
@@ -420,12 +408,12 @@ public:
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4db const & insert(uint32_t index, bool value) {
         static const int32_t maskl[16] = {0,0,0,0,0,0,0,0,-1,-1,0,0,0,0,0,0};
-        packl4d_t mask = nsimd::loadlu((double const*)(maskl+8-(index&3)*2)); // mask with FFFFFFFFFFFFFFFF at index position
+        __m256d mask = _mm256_loadu_pd((double const*)(maskl+8-(index&3)*2)); // mask with FFFFFFFFFFFFFFFF at index position
         if (value) {
-            ymm = nsimd::orl(ymm,mask);
+            ymm = _mm256_or_pd(ymm,mask);
         }
         else {
-            ymm = nsimd::andnotl(mask,ymm);
+            ymm = _mm256_andnot_pd(mask,ymm);
         }
         return *this;
     }
@@ -435,7 +423,7 @@ public:
             double  f[8];
             int32_t i[16];
         } u;
-        nsimd::storeu(u.f, ymm);
+        _mm256_storeu_pd(u.f, ymm);
         return u.i[(index & 3) * 2 + 1] != 0;
     }
     // Extract a single element. Operator [] can only read an element, not write.
@@ -463,7 +451,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec4db operator & (Vec4db const & a, Vec4db const & b) {
-    return nsimd::andb(a, b);
+    return _mm256_and_pd(a, b);
 }
 static inline Vec4db operator && (Vec4db const & a, Vec4db const & b) {
     return a & b;
@@ -477,7 +465,7 @@ static inline Vec4db & operator &= (Vec4db & a, Vec4db const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4db operator | (Vec4db const & a, Vec4db const & b) {
-    return nsimd::orb(a, b);
+    return _mm256_or_pd(a, b);
 }
 static inline Vec4db operator || (Vec4db const & a, Vec4db const & b) {
     return a | b;
@@ -491,7 +479,7 @@ static inline Vec4db & operator |= (Vec4db & a, Vec4db const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4db operator ^ (Vec4db const & a, Vec4db const & b) {
-    return nsimd::xorb(a, b);
+    return _mm256_xor_pd(a, b);
 }
 
 // vector operator ^= : bitwise xor
@@ -502,7 +490,7 @@ static inline Vec4db & operator ^= (Vec4db & a, Vec4db const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4db operator ~ (Vec4db const & a) {
-    return nsimd::xorb(a, _mm256_castps_pd (constant8f<-1,-1,-1,-1,-1,-1,-1,-1>()));
+    return _mm256_xor_pd(a, _mm256_castps_pd (constant8f<-1,-1,-1,-1,-1,-1,-1,-1>()));
 }
 
 // vector operator ! : logical not
@@ -516,7 +504,7 @@ return Vec4db( ! Vec4qb(a));
 
 // andnot: a & ~ b
 static inline Vec4db andnot(Vec4db const & a, Vec4db const & b) {
-    return nsimd::andnotb(b, a);
+    return _mm256_andnot_pd(b, a);
 }
 
 
@@ -553,14 +541,14 @@ static inline bool horizontal_or (Vec4db const & a) {
 
 class Vec8f {
 protected:
-    pack4f_t ymm; // Float vector
+    __m256 ymm; // Float vector
 public:
     // Default constructor:
     Vec8f() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec8f(float f) {
-        ymm = nsimd::set1<pack4f_t>(f);
+        ymm = _mm256_set1_ps(f);
     }
     // Constructor to build from all elements:
     Vec8f(float f0, float f1, float f2, float f3, float f4, float f5, float f6, float f7) {
@@ -572,39 +560,39 @@ public:
         //ymm = _mm256_set_m128(a1, a0);
     }
     // Constructor to convert from type __m256 used in intrinsics:
-    Vec8f(pack4f_t const & x) {
+    Vec8f(__m256 const & x) {
         ymm = x;
     }
     // Assignment operator to convert from type __m256 used in intrinsics:
-    Vec8f & operator = (pack4f_t const & x) {
+    Vec8f & operator = (__m256 const & x) {
         ymm = x;
         return *this;
     }
     // Type cast operator to convert to __m256 used in intrinsics
-    operator pack4f_t() const {
+    operator __m256() const {
         return ymm;
     }
     // Member function to load from array (unaligned)
     Vec8f & load(float const * p) {
-        ymm = nsimd::loadu(p);
+        ymm = _mm256_loadu_ps(p);
         return *this;
     }
     // Member function to load from array, aligned by 32
     // You may use load_a instead of load if you are certain that p points to an address
     // divisible by 32.
     Vec8f & load_a(float const * p) {
-        ymm = nsimd::loada(p);
+        ymm = _mm256_load_ps(p);
         return *this;
     }
     // Member function to store into array (unaligned)
     void store(float * p) const {
-        nsimd::storeu(p, ymm);
+        _mm256_storeu_ps(p, ymm);
     }
     // Member function to store into array, aligned by 32
     // You may use store_a instead of store if you are certain that p points to an address
     // divisible by 32.
     void store_a(float * p) const {
-        nsimd::storea(p, ymm);
+        _mm256_store_ps(p, ymm);
     }
     // Partial load. Load n elements and set the rest to 0
     Vec8f & load_partial(int n, float const * p) {
@@ -616,7 +604,7 @@ public:
             *this = Vec8f(Vec4f().load(p), Vec4f().load_partial(n - 4, p + 4));
         }
         else {
-            ymm = nsimd::set1<pack4f_t>(0);
+            ymm = _mm256_setzero_ps();
         }
         return *this;
     }
@@ -643,24 +631,24 @@ public:
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec8f const & insert(uint32_t index, float value) {
-        pack4f_t v0 = _mm256_broadcast_ss(&value);
+        __m256 v0 = _mm256_broadcast_ss(&value);
         switch (index) {
         case 0:
-            ymm = nsimd::if_else1 (ymm, v0, 1);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 1);  break;
         case 1:
-            ymm = nsimd::if_else1 (ymm, v0, 2);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 2);  break;
         case 2:
-            ymm = nsimd::if_else1 (ymm, v0, 4);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 4);  break;
         case 3:
-            ymm = nsimd::if_else1 (ymm, v0, 8);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 8);  break;
         case 4:
-            ymm = nsimd::if_else1 (ymm, v0, 0x10);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 0x10);  break;
         case 5:
-            ymm = nsimd::if_else1 (ymm, v0, 0x20);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 0x20);  break;
         case 6:
-            ymm = nsimd::if_else1 (ymm, v0, 0x40);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 0x40);  break;
         default:
-            ymm = nsimd::if_else1 (ymm, v0, 0x80);  break;
+            ymm = _mm256_blend_ps (ymm, v0, 0x80);  break;
         }
         return *this;
     }
@@ -696,7 +684,7 @@ public:
 
 // vector operator + : add element by element
 static inline Vec8f operator + (Vec8f const & a, Vec8f const & b) {
-    return nsimd::add(a, b);
+    return _mm256_add_ps(a, b);
 }
 
 // vector operator + : add vector and scalar
@@ -728,7 +716,7 @@ static inline Vec8f & operator ++ (Vec8f & a) {
 
 // vector operator - : subtract element by element
 static inline Vec8f operator - (Vec8f const & a, Vec8f const & b) {
-    return nsimd::sub(a, b);
+    return _mm256_sub_ps(a, b);
 }
 
 // vector operator - : subtract vector and scalar
@@ -742,7 +730,7 @@ static inline Vec8f operator - (float a, Vec8f const & b) {
 // vector operator - : unary minus
 // Change sign bit, even for 0, INF and NAN
 static inline Vec8f operator - (Vec8f const & a) {
-    return nsimd::xorb(a, constant8f<(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000> ());
+    return _mm256_xor_ps(a, constant8f<(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000,(int)0x80000000> ());
 }
 
 // vector operator -= : subtract
@@ -766,7 +754,7 @@ static inline Vec8f & operator -- (Vec8f & a) {
 
 // vector operator * : multiply element by element
 static inline Vec8f operator * (Vec8f const & a, Vec8f const & b) {
-    return nsimd::mul(a, b);
+    return _mm256_mul_ps(a, b);
 }
 
 // vector operator * : multiply vector and scalar
@@ -785,7 +773,7 @@ static inline Vec8f & operator *= (Vec8f & a, Vec8f const & b) {
 
 // vector operator / : divide all elements by same integer
 static inline Vec8f operator / (Vec8f const & a, Vec8f const & b) {
-    return nsimd::div(a, b);
+    return _mm256_div_ps(a, b);
 }
 
 // vector operator / : divide vector and scalar
@@ -804,22 +792,22 @@ static inline Vec8f & operator /= (Vec8f & a, Vec8f const & b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec8fb operator == (Vec8f const & a, Vec8f const & b) {
-    return nsimd::eq(a, b);
+    return _mm256_cmp_ps(a, b, 0);
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec8fb operator != (Vec8f const & a, Vec8f const & b) {
-    return nsimd::notl(nsimd::eq(a, b, 4));
+    return _mm256_cmp_ps(a, b, 4);
 }
 
 // vector operator < : returns true for elements for which a < b
 static inline Vec8fb operator < (Vec8f const & a, Vec8f const & b) {
-    return nsimd::lt(a, b, 1);
+    return _mm256_cmp_ps(a, b, 1);
 }
 
 // vector operator <= : returns true for elements for which a <= b
 static inline Vec8fb operator <= (Vec8f const & a, Vec8f const & b) {
-    return nsimd::le(a, b, 2);
+    return _mm256_cmp_ps(a, b, 2);
 }
 
 // vector operator > : returns true for elements for which a > b
@@ -836,7 +824,7 @@ static inline Vec8fb operator >= (Vec8f const & a, Vec8f const & b) {
 
 // vector operator & : bitwise and
 static inline Vec8f operator & (Vec8f const & a, Vec8f const & b) {
-    return nsimd::andb(a, b);
+    return _mm256_and_ps(a, b);
 }
 
 // vector operator &= : bitwise and
@@ -847,15 +835,15 @@ static inline Vec8f & operator &= (Vec8f & a, Vec8f const & b) {
 
 // vector operator & : bitwise and of Vec8f and Vec8fb
 static inline Vec8f operator & (Vec8f const & a, Vec8fb const & b) {
-    return nsimd::andb(a, b);
+    return _mm256_and_ps(a, b);
 }
 static inline Vec8f operator & (Vec8fb const & a, Vec8f const & b) {
-    return nsimd::andl(a, b);
+    return _mm256_and_ps(a, b);
 }
 
 // vector operator | : bitwise or
 static inline Vec8f operator | (Vec8f const & a, Vec8f const & b) {
-    return nsimd::orb(a, b);
+    return _mm256_or_ps(a, b);
 }
 
 // vector operator |= : bitwise or
@@ -866,7 +854,7 @@ static inline Vec8f & operator |= (Vec8f & a, Vec8f const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec8f operator ^ (Vec8f const & a, Vec8f const & b) {
-    return nsimd::xorb(a, b);
+    return _mm256_xor_ps(a, b);
 }
 
 // vector operator ^= : bitwise xor
@@ -891,7 +879,7 @@ static inline Vec8fb operator ! (Vec8f const & a) {
 // for (int i = 0; i < 8; i++) result[i] = s[i] ? a[i] : b[i];
 // Each byte in s must be either 0 (false) or 0xFFFFFFFF (true). No other values are allowed.
 static inline Vec8f select (Vec8fb const & s, Vec8f const & a, Vec8f const & b) {
-    return nsimd::if_else1 (b, a, s);
+    return _mm256_blendv_ps (b, a, s);
 }
 
 // Conditional add: For all vector elements i: result[i] = f[i] ? (a[i] + b[i]) : a[i]
@@ -909,8 +897,8 @@ static inline Vec8f if_mul (Vec8fb const & f, Vec8f const & a, Vec8f const & b) 
 
 // Horizontal add: Calculates the sum of all vector elements.
 static inline float horizontal_add (Vec8f const & a) {
-    pack4f_t t1 = _mm256_hadd_ps(a,a);
-    pack4f_t t2 = _mm256_hadd_ps(t1,t1);
+    __m256 t1 = _mm256_hadd_ps(a,a);
+    __m256 t2 = _mm256_hadd_ps(t1,t1);
     __m128 t3 = _mm256_extractf128_ps(t2,1);
     __m128 t4 = _mm_add_ss(_mm256_castps256_ps128(t2),t3);
     return _mm_cvtss_f32(t4);        
@@ -918,23 +906,24 @@ static inline float horizontal_add (Vec8f const & a) {
 
 // function max: a > b ? a : b
 static inline Vec8f max(Vec8f const & a, Vec8f const & b) {
-    return nsimd::max(a,b);
+    return _mm256_max_ps(a,b);
 }
 
 // function min: a < b ? a : b
 static inline Vec8f min(Vec8f const & a, Vec8f const & b) {
-    return nsimd::min(a,b);
+    return _mm256_min_ps(a,b);
 }
 
 // function abs: absolute value
 // Removes sign bit, even for -0.0f, -INF and -NAN
 static inline Vec8f abs(Vec8f const & a) {
-    return nsimd::abs(a);
+    __m256 mask = constant8f<0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF,0x7FFFFFFF> ();
+    return _mm256_and_ps(a,mask);
 }
 
 // function sqrt: square root
 static inline Vec8f sqrt(Vec8f const & a) {
-    return nsimd::sqrt(a);
+    return _mm256_sqrt_ps(a);
 }
 
 // function square: a * a
@@ -1014,22 +1003,22 @@ static inline Vec8f pow(Vec8f const & a, Const_int_t<n>) {
 
 // function round: round to nearest integer (even). (result as float vector)
 static inline Vec8f round(Vec8f const & a) {
-    return nsimd::round(a, 0+8);
+    return _mm256_round_ps(a, 0+8);
 }
 
 // function truncate: round towards zero. (result as float vector)
 static inline Vec8f truncate(Vec8f const & a) {
-    return nsimd::trunc(a);
+    return _mm256_round_ps(a, 3+8);
 }
 
 // function floor: round towards minus infinity. (result as float vector)
 static inline Vec8f floor(Vec8f const & a) {
-    return nsimd::floor(a);
+    return _mm256_round_ps(a, 1+8);
 }
 
 // function ceil: round towards plus infinity. (result as float vector)
 static inline Vec8f ceil(Vec8f const & a) {
-    return nsimd::ceil(a);
+    return _mm256_round_ps(a, 2+8);
 }
 
 #ifdef VECTORI256_H  // 256 bit integer vectors are available
@@ -1092,20 +1081,35 @@ static inline Vec8f to_float(Vec8ui const & a) {
 
 // Multiply and add
 static inline Vec8f mul_add(Vec8f const & a, Vec8f const & b, Vec8f const & c) {
-    return nsimd::fma(a, b, c);
+#ifdef __FMA__
+    return _mm256_fmadd_ps(a, b, c);
+#elif defined (__FMA4__)
+    return _mm256_macc_ps(a, b, c);
+#else
+    return a * b + c;
 #endif
     
 }
 
 // Multiply and subtract
 static inline Vec8f mul_sub(Vec8f const & a, Vec8f const & b, Vec8f const & c) {
-    return nsimd::fms(a, b, c);
+#ifdef __FMA__
+    return _mm256_fmsub_ps(a, b, c);
+#elif defined (__FMA4__)
+    return _mm256_msub_ps(a, b, c);
+#else
+    return a * b - c;
 #endif    
 }
 
 // Multiply and inverse subtract
 static inline Vec8f nmul_add(Vec8f const & a, Vec8f const & b, Vec8f const & c) {
-    nsimd::fnma(a, b, c);
+#ifdef __FMA__
+    return _mm256_fnmadd_ps(a, b, c);
+#elif defined (__FMA4__)
+    return _mm256_nmacc_ps(a, b, c);
+#else
+    return c - a * b;
 #endif
 }
 
@@ -1113,7 +1117,22 @@ static inline Vec8f nmul_add(Vec8f const & a, Vec8f const & b, Vec8f const & c) 
 // Multiply and subtract with extra precision on the intermediate calculations, 
 // even if FMA instructions not supported, using Veltkamp-Dekker split
 static inline Vec8f mul_sub_x(Vec8f const & a, Vec8f const & b, Vec8f const & c) {
-    return nsimd::fnms(a, b, c);
+#ifdef __FMA__
+    return _mm256_fmsub_ps(a, b, c);
+#elif defined (__FMA4__)
+    return _mm256_msub_ps(a, b, c);
+#else
+    // calculate a * b - c with extra precision
+    const int b12 = -(1 << 12);                  // mask to remove lower 12 bits
+    Vec8f upper_mask = constant8f<b12,b12,b12,b12,b12,b12,b12,b12>();
+    Vec8f a_high = a & upper_mask;               // split into high and low parts
+    Vec8f b_high = b & upper_mask;
+    Vec8f a_low  = a - a_high;
+    Vec8f b_low  = b - b_high;
+    Vec8f r1 = a_high * b_high;                  // this product is exact
+    Vec8f r2 = r1 - c;                           // subtract c from high product
+    Vec8f r3 = r2 + (a_high * b_low + b_high * a_low) + a_low * b_low; // add rest of product
+    return r3; // + ((r2 - r1) + c);
 #endif
 }
 
@@ -1122,13 +1141,33 @@ static inline Vec8f mul_sub_x(Vec8f const & a, Vec8f const & b, Vec8f const & c)
 
 // approximate reciprocal (Faster than 1.f / a. relative accuracy better than 2^-11)
 static inline Vec8f approx_recipr(Vec8f const & a) {
-    nsimd::rec11(a);
+#if INSTRSET >= 9  // use more accurate version if available. (none of these will raise exceptions on zero)
+#ifdef __AVX512ER__  // AVX512ER: full precision
+    // todo: if future processors have both AVX512ER and AVX512VL: _mm256_rcp28_round_ps(a, _MM_FROUND_NO_EXC);
+    return _mm512_castps512_ps256(_mm512_rcp28_round_ps(_mm512_castps256_ps512(a), _MM_FROUND_NO_EXC));
+#elif defined __AVX512VL__  // AVX512VL: 14 bit precision
+    return _mm256_rcp14_ps(a);
+#else  // AVX512F: 14 bit precision
+    return _mm512_castps512_ps256(_mm512_rcp14_ps(_mm512_castps256_ps512(a)));
+#endif
+#else  // AVX: 11 bit precision
+    return _mm256_rcp_ps(a);
 #endif
 }
 
 // approximate reciprocal squareroot (Faster than 1.f / sqrt(a). Relative accuracy better than 2^-11)
 static inline Vec8f approx_rsqrt(Vec8f const & a) {
-    nsimd::rsqrt11(a);
+#if INSTRSET >= 9  // use more accurate version if available. (none of these will raise exceptions on zero)
+#ifdef __AVX512ER__  // AVX512ER: full precision
+    // todo: if future processors have both AVX512ER and AVX521VL: _mm256_rsqrt28_round_ps(a, _MM_FROUND_NO_EXC);
+    return _mm512_castps512_ps256(_mm512_rsqrt28_round_ps(_mm512_castps256_ps512(a), _MM_FROUND_NO_EXC));
+#elif defined __AVX512VL__  // AVX512VL: 14 bit precision
+    return _mm256_rsqrt14_ps(a);
+#else  // AVX512F: 14 bit precision
+    return _mm512_castps512_ps256(_mm512_rsqrt14_ps(_mm512_castps256_ps512(a)));
+#endif
+#else  // AVX: 11 bit precision
+    return _mm256_rsqrt_ps(a);
 #endif
 }
 
@@ -1309,7 +1348,7 @@ static inline Vec8f change_sign(Vec8f const & a) {
 
 class Vec4d {
 protected:
-    pack4d_t ymm; // double vector
+    __m256d ymm; // double vector
 public:
     // Default constructor:
     Vec4d() {
@@ -1328,16 +1367,16 @@ public:
         //ymm = _mm256_set_m128d(a1, a0);
     }
     // Constructor to convert from type __m256d used in intrinsics:
-    Vec4d(pack4d_t const & x) {
+    Vec4d(__m256d const & x) {
         ymm = x;
     }
     // Assignment operator to convert from type __m256d used in intrinsics:
-    Vec4d & operator = (pack4d_t const & x) {
+    Vec4d & operator = (__m256d const & x) {
         ymm = x;
         return *this;
     }
     // Type cast operator to convert to __m256d used in intrinsics
-    operator pack4d_t() const {
+    operator __m256d() const {
         return ymm;
     }
     // Member function to load from array (unaligned)
@@ -1393,7 +1432,7 @@ public:
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4d const & insert(uint32_t index, double value) {
-        pack4d_t v0 = _mm256_broadcast_sd(&value);
+        __m256d v0 = _mm256_broadcast_sd(&value);
         switch (index) {
         case 0:
             ymm = _mm256_blend_pd (ymm, v0, 1);  break;
@@ -1653,7 +1692,7 @@ static inline Vec4d if_mul (Vec4db const & f, Vec4d const & a, Vec4d const & b) 
 
 // Horizontal add: Calculates the sum of all vector elements.
 static inline double horizontal_add (Vec4d const & a) {
-    pack4d_t t1 = _mm256_hadd_pd(a,a);
+    __m256d t1 = _mm256_hadd_pd(a,a);
     __m128d t2 = _mm256_extractf128_pd(t1,1);
     __m128d t3 = _mm_add_sd(_mm256_castpd256_pd128(t1),t2);
     return _mm_cvtsd_f64(t3);        
@@ -1672,7 +1711,7 @@ static inline Vec4d min(Vec4d const & a, Vec4d const & b) {
 // function abs: absolute value
 // Removes sign bit, even for -0.0f, -INF and -NAN
 static inline Vec4d abs(Vec4d const & a) {
-    pack4d_t mask = _mm256_castps_pd(constant8f<-1,0x7FFFFFFF,-1,0x7FFFFFFF,-1,0x7FFFFFFF,-1,0x7FFFFFFF> ());
+    __m256d mask = _mm256_castps_pd(constant8f<-1,0x7FFFFFFF,-1,0x7FFFFFFF,-1,0x7FFFFFFF,-1,0x7FFFFFFF> ());
     return _mm256_and_pd(a,mask);
 }
 
@@ -2135,31 +2174,31 @@ static inline __m256i reinterpret_i (__m256  const & x) {
     return _mm256_castps_si256(x);
 }
 
-static inline __m256i reinterpret_i (pack4d_t const & x) {
+static inline __m256i reinterpret_i (__m256d const & x) {
     return _mm256_castpd_si256(x);
 }
 
-static inline pack4f_t  reinterpret_f (__m256i const & x) {
+static inline __m256  reinterpret_f (__m256i const & x) {
     return _mm256_castsi256_ps(x);
 }
 
-static inline pack4f_t  reinterpret_f (pack4f_t  const & x) {
+static inline __m256  reinterpret_f (__m256  const & x) {
     return x;
 }
 
-static inline pack4f_t  reinterpret_f (pack4d_t const & x) {
+static inline __m256  reinterpret_f (__m256d const & x) {
     return _mm256_castpd_ps(x);
 }
 
-static inline pack4d_t reinterpret_d (__m256i const & x) {
+static inline __m256d reinterpret_d (__m256i const & x) {
     return _mm256_castsi256_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (pack4f_t  const & x) {
+static inline __m256d reinterpret_d (__m256  const & x) {
     return _mm256_castps_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (pack4d_t const & x) {
+static inline __m256d reinterpret_d (__m256d const & x) {
     return x;
 }
 
@@ -2189,51 +2228,51 @@ static inline __m256i reinterpret_i (Vec4d const & x) {
     return _mm256_castpd_si256(x);
 }
 
-static inline pack4f_t  reinterpret_f (Vec32c const & x) {
+static inline __m256  reinterpret_f (Vec32c const & x) {
     return _mm256_castsi256_ps(x);
 }
 
-static inline pack4f_t  reinterpret_f (Vec16s const & x) {
+static inline __m256  reinterpret_f (Vec16s const & x) {
     return _mm256_castsi256_ps(x);
 }
 
-static inline pack4f_t  reinterpret_f (Vec8i const & x) {
+static inline __m256  reinterpret_f (Vec8i const & x) {
     return _mm256_castsi256_ps(x);
 }
 
-static inline pack4f_t  reinterpret_f (Vec4q const & x) {
+static inline __m256  reinterpret_f (Vec4q const & x) {
     return _mm256_castsi256_ps(x);
 }
 
-static inline pack4f_t  reinterpret_f (Vec8f  const & x) {
+static inline __m256  reinterpret_f (Vec8f  const & x) {
     return x;
 }
 
-static inline pack4f_t  reinterpret_f (Vec4d const & x) {
+static inline __m256  reinterpret_f (Vec4d const & x) {
     return _mm256_castpd_ps(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec32c const & x) {
+static inline __m256d reinterpret_d (Vec32c const & x) {
     return _mm256_castsi256_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec16s const & x) {
+static inline __m256d reinterpret_d (Vec16s const & x) {
     return _mm256_castsi256_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec8i const & x) {
+static inline __m256d reinterpret_d (Vec8i const & x) {
     return _mm256_castsi256_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec4q const & x) {
+static inline __m256d reinterpret_d (Vec4q const & x) {
     return _mm256_castsi256_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec8f  const & x) {
+static inline __m256d reinterpret_d (Vec8f  const & x) {
     return _mm256_castps_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec4d const & x) {
+static inline __m256d reinterpret_d (Vec4d const & x) {
     return x;
 }
 
@@ -2246,29 +2285,29 @@ static inline pack4d_t reinterpret_d (Vec4d const & x) {
 // It is recommended to compile with -fabi-version=0 to get the latest abi version
 #if !defined (GCC_VERSION) || (defined (__GXX_ABI_VERSION) && __GXX_ABI_VERSION >= 1004)  
 
-static inline Vec256ie reinterpret_i (pack4f_t  const & x) {
+static inline Vec256ie reinterpret_i (__m256  const & x) {
     Vec8f xx(x);
     return Vec256ie(reinterpret_i(xx.get_low()), reinterpret_i(xx.get_high()));
 }
 
-static inline Vec256ie reinterpret_i (pack4d_t const & x) {
+static inline Vec256ie reinterpret_i (__m256d const & x) {
     Vec4d xx(x);
     return Vec256ie(reinterpret_i(xx.get_low()), reinterpret_i(xx.get_high()));
 }
 
-static inline pack4f_t  reinterpret_f (pack4f_t  const & x) {
+static inline __m256  reinterpret_f (__m256  const & x) {
     return x;
 }
 
-static inline pack4f_t  reinterpret_f (__m256d const & x) {
+static inline __m256  reinterpret_f (__m256d const & x) {
     return _mm256_castpd_ps(x);
 }
 
-static inline pack4d_t reinterpret_d (pack4f_t  const & x) {
+static inline __m256d reinterpret_d (__m256  const & x) {
     return _mm256_castps_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (pack4d_t const & x) {
+static inline __m256d reinterpret_d (__m256d const & x) {
     return x;
 }
 
@@ -2284,19 +2323,19 @@ static inline Vec256ie reinterpret_i (Vec4d const & x) {
     return Vec256ie(reinterpret_i(xx.get_low()), reinterpret_i(xx.get_high()));
 }
 
-static inline pack4f_t  reinterpret_f (Vec8f const & x) {
+static inline __m256  reinterpret_f (Vec8f const & x) {
     return x;
 }
 
-static inline pack4f_t  reinterpret_f (Vec4d const & x) {
+static inline __m256  reinterpret_f (Vec4d const & x) {
     return _mm256_castpd_ps(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec8f const & x) {
+static inline __m256d reinterpret_d (Vec8f const & x) {
     return _mm256_castps_pd(x);
 }
 
-static inline pack4d_t reinterpret_d (Vec4d const & x) {
+static inline __m256d reinterpret_d (Vec4d const & x) {
     return x;
 }
 
@@ -2306,11 +2345,11 @@ static inline Vec256ie reinterpret_i (Vec256ie const & x) {
     return x;
 }
 
-static inline pack4f_t  reinterpret_f (Vec256ie const & x) {
+static inline __m256  reinterpret_f (Vec256ie const & x) {
     return Vec8f(Vec4f(reinterpret_f(x.get_low())), Vec4f(reinterpret_f(x.get_high())));
 }
 
-static inline pack4d_t reinterpret_d (Vec256ie const & x) {
+static inline __m256d reinterpret_d (Vec256ie const & x) {
     return Vec4d(Vec2d(reinterpret_d(x.get_low())), Vec2d(reinterpret_d(x.get_high())));
 }
 
@@ -2412,18 +2451,18 @@ static inline Vec4d permute4d(Vec4d const & a) {
     }
 
     // make operands for VSHUFPD
-    pack4d_t r1, r2;
+    __m256d r1, r2;
 
     switch (s1) {
     case 0x00:  // LL
         r1 = _mm256_insertf128_pd(a,_mm256_castpd256_pd128(a),1);  break;
     case 0x03:  // LZ
-        r1 = _mm256_insertf128_pd(do_zero ? _mm256_setzero_pd() : pack4d_t(a), _mm256_castpd256_pd128(a), 1);
+        r1 = _mm256_insertf128_pd(do_zero ? _mm256_setzero_pd() : __m256d(a), _mm256_castpd256_pd128(a), 1);
         break;
     case 0x10:  // LH
         r1 = a;  break;
     case 0x13:  // ZH
-        r1 = do_zero ? _mm256_and_pd(a, _mm256_castps_pd(constant8f<0,0,0,0,-1,-1,-1,-1>())) : pack4d_t(a);  break;
+        r1 = do_zero ? _mm256_and_pd(a, _mm256_castps_pd(constant8f<0,0,0,0,-1,-1,-1,-1>())) : __m256d(a);  break;
     case 0x30:  // LZ
         if (do_zero) {
             __m128d t  = _mm256_castpd256_pd128(a);
@@ -2435,7 +2474,7 @@ static inline Vec4d permute4d(Vec4d const & a) {
     case 0x31:  // HZ
         r1 = _mm256_castpd128_pd256(_mm256_extractf128_pd(a,1));  break;
     case 0x33:  // ZZ
-        r1 = do_zero ? _mm256_setzero_pd() : pack4d_t(a);  break;
+        r1 = do_zero ? _mm256_setzero_pd() : __m256d(a);  break;
     default:;   // Not needed. Avoid warning in Clang
     }
 
@@ -2448,12 +2487,12 @@ static inline Vec4d permute4d(Vec4d const & a) {
         case 0x00:  // LL
             r2 = _mm256_insertf128_pd(a,_mm256_castpd256_pd128(a),1);  break;
         case 0x03:  // ZL
-            r2 = _mm256_insertf128_pd(do_zero ? _mm256_setzero_pd() : pack4d_t(a), _mm256_castpd256_pd128(a), 1);
+            r2 = _mm256_insertf128_pd(do_zero ? _mm256_setzero_pd() : __m256d(a), _mm256_castpd256_pd128(a), 1);
             break;
         case 0x10:  // LH
             r2 = a;  break;
         case 0x13:  // ZH
-            r2 = do_zero ? _mm256_and_pd(a,_mm256_castps_pd(constant8f<0,0,0,0,-1,-1,-1,-1>())) : pack4d_t(a);  break;
+            r2 = do_zero ? _mm256_and_pd(a,_mm256_castps_pd(constant8f<0,0,0,0,-1,-1,-1,-1>())) : __m256d(a);  break;
         case 0x30:  // LZ
             if (do_zero) {
                 __m128d t  = _mm256_castpd256_pd128(a);
@@ -2465,7 +2504,7 @@ static inline Vec4d permute4d(Vec4d const & a) {
         case 0x31:  // HZ
             r2 = _mm256_castpd128_pd256(_mm256_extractf128_pd(a,1));  break;
         case 0x33:  // ZZ
-            r2 = do_zero ? _mm256_setzero_pd() : pack4d_t(a);  break;
+            r2 = do_zero ? _mm256_setzero_pd() : __m256d(a);  break;
         default:;   // Not needed. Avoid warning in Clang
         }
     }
@@ -2487,7 +2526,7 @@ static inline Vec4d blend4d(Vec4d const & a, Vec4d const & b) {
 
     if (mz == 0) return _mm256_setzero_pd();  // all zero
     
-    pack4d_t t1;
+    __m256d t1;
     if ((((m1 & 0xFEFEFEFE) ^ 0x06020400) & mz) == 0) {
         // fits VSHUFPD(a,b)
         t1 = _mm256_shuffle_pd(a, b, (i0 & 1) | (i1 & 1) << 1 | (i2 & 1) << 2 | (i3 & 1) << 3);
@@ -2655,7 +2694,7 @@ static inline Vec8f permute8f(Vec8f const & a) {
             const int sm = (k0 < 0 ? 0 : (k0 & 3)) | (k1 < 0 ? 1 : (k1 & 3)) << 2 | (k2 < 0 ? 2 : (k2 & 3)) << 4 | (k3 < 0 ? 3 : (k3 & 3)) << 6;
 
             // make operands for VSHUFPS
-            pack4f_t r1, r2;
+            __m256 r1, r2;
 
             switch (s1) {
             case 0x00:  // LL
@@ -2815,7 +2854,7 @@ static inline Vec8f blend8f(Vec8f const & a, Vec8f const & b) {
         // permute mask
         const int sm = (k0 < 0 ? 0 : (k0 & 3)) | (k1 < 0 ? 1 : (k1 & 3)) << 2 | (k2 < 0 ? 2 : (k2 & 3)) << 4 | (k3 < 0 ? 3 : (k3 & 3)) << 6;
 
-        pack4f_t r1, r2;
+        __m256 r1, r2;
         __m128 ahi = _mm256_extractf128_ps(a,1);    // 1
         __m128 bhi = _mm256_extractf128_ps(b,1);    // 3
 
@@ -3001,17 +3040,17 @@ static inline Vec8f lookup8(Vec8i const & index, Vec8f const & table) {
 
 #else // AVX
     // swap low and high part of table
-    pack4f_t  t1 = _mm256_castps128_ps256(_mm256_extractf128_ps(table, 1));
-    pack4f_t  t2 = _mm256_insertf128_ps(t1, _mm256_castps256_ps128(table), 1);
+    __m256  t1 = _mm256_castps128_ps256(_mm256_extractf128_ps(table, 1));
+    __m256  t2 = _mm256_insertf128_ps(t1, _mm256_castps256_ps128(table), 1);
     // join index parts
     __m256i index2 = _mm256_insertf128_si256(_mm256_castsi128_si256(index.get_low()), index.get_high(), 1);
     // permute within each 128-bit part
-    pack4f_t  r0 = _mm256_permutevar_ps(table, index2);
-    pack4f_t  r1 = _mm256_permutevar_ps(t2,    index2);
+    __m256  r0 = _mm256_permutevar_ps(table, index2);
+    __m256  r1 = _mm256_permutevar_ps(t2,    index2);
     // high index bit for blend
     __m128i k1 = _mm_slli_epi32(index.get_high() ^ 4, 29);
     __m128i k0 = _mm_slli_epi32(index.get_low(),      29);
-    pack4f_t  kk = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_castsi128_ps(k0)), _mm_castsi128_ps(k1), 1);
+    __m256  kk = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_castsi128_ps(k0)), _mm_castsi128_ps(k1), 1);
     // blend the two permutes
     return _mm256_blendv_ps(r0, r1, kk);
 #endif
@@ -3068,20 +3107,20 @@ static inline Vec4d lookup4(Vec4q const & index, Vec4d const & table) {
 
 #else // AVX
     // swap low and high part of table
-    pack4d_t t1 = _mm256_castpd128_pd256(_mm256_extractf128_pd(table, 1));
-    pack4d_t t2 = _mm256_insertf128_pd(t1, _mm256_castpd256_pd128(table), 1);
+    __m256d t1 = _mm256_castpd128_pd256(_mm256_extractf128_pd(table, 1));
+    __m256d t2 = _mm256_insertf128_pd(t1, _mm256_castpd256_pd128(table), 1);
     // index << 1
     __m128i index2lo = index.get_low()  + index.get_low();
     __m128i index2hi = index.get_high() + index.get_high();
     // join index parts
     __m256i index3 = _mm256_insertf128_si256(_mm256_castsi128_si256(index2lo), index2hi, 1);
     // permute within each 128-bit part
-    pack4d_t r0 = _mm256_permutevar_pd(table, index3);
-    pack4d_t r1 = _mm256_permutevar_pd(t2,    index3);
+    __m256d r0 = _mm256_permutevar_pd(table, index3);
+    __m256d r1 = _mm256_permutevar_pd(t2,    index3);
     // high index bit for blend
     __m128i k1 = _mm_slli_epi64(index.get_high() ^ 2, 62);
     __m128i k0 = _mm_slli_epi64(index.get_low(),      62);
-    pack4d_t kk = _mm256_insertf128_pd(_mm256_castpd128_pd256(_mm_castsi128_pd(k0)), _mm_castsi128_pd(k1), 1);
+    __m256d kk = _mm256_insertf128_pd(_mm256_castpd128_pd256(_mm_castsi128_pd(k0)), _mm_castsi128_pd(k1), 1);
     // blend the two permutes
     return _mm256_blendv_pd(r0, r1, kk);
 #endif

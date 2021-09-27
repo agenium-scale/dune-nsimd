@@ -59,8 +59,13 @@ namespace NSIMD_NAMESPACE {
 // allowed. The implementation depends on the instruction set: 
 // If SSE4.1 is supported then only bit 31 in each dword of s is checked, 
 // otherwise all bits in s are used.
-static inline nsimd::pack<float> selectf (nsimd::pack<float> const & s, nsimd::pack<float> const & a, nsimd::pack<float> const & b) {
-    return nsimd::if_else1(b, a, s);
+static inline __m128 selectf (__m128 const & s, __m128 const & a, __m128 const & b) {
+#if INSTRSET >= 5   // SSE4.1 supported
+    return _mm_blendv_ps (b, a, s);
+#else
+    return _mm_or_ps(
+        _mm_and_ps(s,a),
+        _mm_andnot_ps(s,b));
 #endif
 }
 
@@ -71,8 +76,13 @@ static inline nsimd::pack<float> selectf (nsimd::pack<float> const & s, nsimd::p
 // values are allowed. The implementation depends on the instruction set: 
 // If SSE4.1 is supported then only bit 63 in each dword of s is checked, 
 // otherwise all bits in s are used.
-static inline nsimd::pack<double> selectd (nsimd::pack<double> const & s, nsimd::pack<double> const & a, nsimd::pack<double> const & b) {
-    return nsimd::if_else1(b, a, s);
+static inline __m128d selectd (__m128d const & s, __m128d const & a, __m128d const & b) {
+#if INSTRSET >= 5   // SSE4.1 supported
+    return _mm_blendv_pd (b, a, s);
+#else
+    return _mm_or_pd(
+        _mm_and_pd(s,a),
+        _mm_andnot_pd(s,b));
 #endif
 } 
 
@@ -85,7 +95,7 @@ static inline nsimd::pack<double> selectd (nsimd::pack<double> const & s, nsimd:
 
 class Vec4fb {
 protected:
-    nsimd::pack<float> xmm; // Float vector
+    __m128 xmm; // Float vector
 public:
     // Default constructor:
     Vec4fb() {
@@ -95,17 +105,17 @@ public:
         xmm = _mm_castsi128_ps(_mm_setr_epi32(-(int)b0, -(int)b1, -(int)b2, -(int)b3)); 
     }
     // Constructor to convert from type __m128 used in intrinsics:
-    Vec4fb(nsimd::pack<float> const & x) {
+    Vec4fb(__m128 const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128 used in intrinsics:
-    Vec4fb & operator = (nsimd::pack<float> const & x) {
+    Vec4fb & operator = (__m128 const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
     Vec4fb(bool b) {
-        xmm = _mm_castsi128_ps(nsimd::set1(-int32_t(b)));
+        xmm = _mm_castsi128_ps(_mm_set1_epi32(-int32_t(b)));
     }
     // Assignment operator to broadcast scalar value:
     Vec4fb & operator = (bool b) {
@@ -126,7 +136,7 @@ public:
         return *this;
     }
     // Type cast operator to convert to __m128 used in intrinsics
-    operator nsimd::pack<float>() const {
+    operator __m128() const {
         return xmm;
     }
     /* Clang problem:

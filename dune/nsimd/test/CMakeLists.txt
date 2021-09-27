@@ -3,15 +3,22 @@ include(DuneInstance)
 
 set(MAX_VECTOR_SIZE 512)
 
-set(SSE2_COMPILE_FLAGS) # implicit in x86_64
-set(AVX_COMPILE_FLAGS -mavx)
-set(AVX2_COMPILE_FLAGS -mavx -mavx2 -mfma)
+set(SSE2_COMPILE_FLAGS "-DSSE2 -msse2") # implicit in x86_64
+set(AVX_COMPILE_FLAGS "-DAVX -mavx")
+set(AVX2_COMPILE_FLAGS "-DAVX2 -mavx2 -DFMA -mfma -DFP16 -mf16c")
 
 #set(AVX512_COMPILE_FLAGS -march=skylake-avx512)
 # The above is not supported on Ubuntu 16.04 yet so use the below explicit flags
-set(AVX512_COMPILE_FLAGS
-  -mavx -mavx2 -mfma
-  -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl)
+set(AVX512_COMPILE_FLAGS "-DAVX512_SKYLAKE -mavx512_skylake -mfma -DFP16 -mf16c")
+
+message(STATUS "avx2 : ${NSIMD_AVX2} | sse2 : ${NSIMD_SSE2} | avx : ${NSIMD_AVX} | sse42 : ${NSIMD_SSE42}")
+set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${AVX2_COMPILE_FLAGS}" )
+
+
+message(STATUS "CXX_FLAGS : ${CMAKE_CXX_FLAGS}")
+set ( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS}" PARENT)
+set ( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS}" PARENT)
+
 
 ######################################################################
 #

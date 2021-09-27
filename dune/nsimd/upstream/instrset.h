@@ -5,7 +5,7 @@
 * Version:       1.25
 * Project:       vector classes
 * Description:
-* Header file for various compiler-specific tasks and other common tasks to 
+* Header file for various compiler-specific tasks and other common tasks to
 * vector class library:
 * > selects the supported instruction set
 * > defines integer types
@@ -28,7 +28,7 @@
 // Find instruction set from compiler macros if INSTRSET not defined
 // Note: Most of these macros are not defined in Microsoft compilers
 #ifndef INSTRSET
-#if defined ( NSIMD_AVX512_KNL ) || defined ( NSIMD_AVX512_SKYLAKE )
+#if defined ( NSIMD_AVX512_SKYLAKE )
 #define INSTRSET 9
 #elif defined ( NSIMD_AVX2 )
 #define INSTRSET 8
@@ -38,16 +38,13 @@
 #define INSTRSET 6
 #elif defined ( NSIMD_SSE2 ) || defined ( __x86_64__ )
 #define INSTRSET 2
-#else 
+#else
 #define INSTRSET 0
 #endif // instruction set defines
 #endif // INSTRSET
 
 // Include the appropriate header file for intrinsic functions
-#include <nsimd/cxx_adv_api.hpp>
-#include <nsimd/cxx_adv_api_functions.hpp>
-//#include <nsimd/nsimd-all.hpp>
-#include <nsimd/nsimd.h>
+#include <nsimd/nsimd-all.hpp>
 
 #if INSTRSET >= 8 && !defined(__FMA__)
 // Assume that all processors that have AVX2 also have FMA3
@@ -159,7 +156,7 @@ namespace NSIMD_NAMESPACE {
     };
 #ifdef NSIMD_NAMESPACE
 }
-#endif 
+#endif
 
 
 #endif // INSTRSET_H

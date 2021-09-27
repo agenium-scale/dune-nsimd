@@ -1,3 +1,11 @@
+#if defined(_M_AMD64) || defined(_M_X64) || defined(__amd64) || \
+    defined(__x86_64__)
+#define NSIMD_SSE2
+#else
+#define NSIMD_AARCH64
+#endif
+#include <nsimd/nsimd-all.hpp>
+
 #include <iostream>
 #include <dune/nsimd/nsimd.hh>
 

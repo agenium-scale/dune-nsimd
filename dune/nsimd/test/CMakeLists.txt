@@ -3,22 +3,36 @@ include(DuneInstance)
 
 set(MAX_VECTOR_SIZE 512)
 
-set(SSE2_COMPILE_FLAGS "-DSSE2 -msse2") # implicit in x86_64
+# Intel
+set(SSE2_COMPILE_FLAGS "-DSSE2 -msse2")
 set(AVX_COMPILE_FLAGS "-DAVX -mavx")
 set(AVX2_COMPILE_FLAGS "-DAVX2 -mavx2 -DFMA -mfma -DFP16 -mf16c")
+set(AVX512_COMPILE_FLAGS "-DAVX512_SKYLAKE -mavx512f -mavx512dq -mavx512cd -mavx512bw -mavx512vl")
 
-#set(AVX512_COMPILE_FLAGS -march=skylake-avx512)
-# The above is not supported on Ubuntu 16.04 yet so use the below explicit flags
-set(AVX512_COMPILE_FLAGS "-DAVX512_SKYLAKE -mavx512_skylake -mfma -DFP16 -mf16c")
+# Arm 32 bits
+set(NEON128_COMPILE_FLAGS "-DNEON128 -mfpu=neon")
 
-message(STATUS "avx2 : ${NSIMD_AVX2} | sse2 : ${NSIMD_SSE2} | avx : ${NSIMD_AVX} | sse42 : ${NSIMD_SSE42}")
-set ( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${AVX2_COMPILE_FLAGS}" )
+# Arm 64 bits
+set(AARCH64_COMPILE_FLAGS "-DAARCH64")
+set(SVE128_COMPILE_FLAGS "-DSVE128 -march=armv8.2-a+sve -msve-vector-bits=128")
+set(SVE256_COMPILE_FLAGS "-DSVE256 -march=armv8.2-a+sve -msve-vector-bits=256")
+set(SVE512_COMPILE_FLAGS "-DSVE512 -march=armv8.2-a+sve -msve-vector-bits=512")
 
+# List of architectures
+set(LIST_X86 "sse2;avx;avx2;avx512")
+set(LIST_AARCH64 "aarch64;sve128;sve256;sve512")
 
-message(STATUS "CXX_FLAGS : ${CMAKE_CXX_FLAGS}")
-set ( CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS}" PARENT)
-set ( CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS}" PARENT)
-
+if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+  set(LIST_SIMD_EXTS "${LIST_X86}")
+  set(SIMD_EXT_FOR_VEC2D "${SSE2_COMPILE_FLAGS}")
+  set(SIMD_EXT_FOR_VEC4D "${AVX2_COMPILE_FLAGS}")
+  set(SIMD_EXT_FOR_VEC8D "${AVX512_COMPILE_FLAGS}")
+else()
+  set(LIST_SIMD_EXTS "${LIST_AARCH64}")
+  set(SIMD_EXT_FOR_VEC2D "${AARCH64_COMPILE_FLAGS}")
+  set(SIMD_EXT_FOR_VEC4D "${SVE256_COMPILE_FLAGS}")
+  set(SIMD_EXT_FOR_VEC8D "${SVE512_COMPILE_FLAGS}")
+endif()
 
 ######################################################################
 #
@@ -59,7 +73,7 @@ dune_instance_end()
 
 dune_list_filter(DUNE_INSTANCE_GENERATED INCLUDE REGEX [[\.cc$]])
 
-foreach(iset IN ITEMS sse2 avx avx2 avx512)
+foreach(iset IN ITEMS ${LIST_SIMD_EXTS})
   string(TOUPPER "${iset}" ISET)
 
   dune_add_test(NAME nsimdtest-${iset}
@@ -95,7 +109,7 @@ dune_instance_end()
 
 dune_list_filter(DUNE_INSTANCE_GENERATED INCLUDE REGEX [[\.cc$]])
 
-foreach(iset IN ITEMS sse2 avx avx2 avx512)
+foreach(iset IN ITEMS ${LIST_SIMD_EXTS})
   string(TOUPPER "${iset}" ISET)
 
   dune_add_test(NAME multirhstest-${iset}
@@ -134,7 +148,7 @@ dune_add_test(NAME multirhsperftest-jacobi-nsimd-2
   SOURCES multirhsperftest-jacobi-nsimd.cc
   COMPILE_DEFINITIONS -DMAX_VECTOR_SIZE=${MAX_VECTOR_SIZE}
   COMPILE_DEFINITIONS -DTYPE=Vec2d -DRUNS=${RUNS}
-  COMPILE_FLAGS -msse2
+  COMPILE_FLAGS "${SIMD_EXT_FOR_VEC2D}"
   LINK_LIBRARIES dunecommon
   CMAKE_GUARD dune-istl_FOUND
 )
@@ -143,7 +157,7 @@ dune_add_test(NAME multirhsperftest-jacobi-nsimd-4
   SOURCES multirhsperftest-jacobi-nsimd.cc
   COMPILE_DEFINITIONS -DMAX_VECTOR_SIZE=${MAX_VECTOR_SIZE}
   COMPILE_DEFINITIONS -DTYPE=Vec4d -DRUNS=${RUNS}
-  COMPILE_FLAGS -mavx2 -mfma
+  COMPILE_FLAGS "${SIMD_EXT_FOR_VEC4D}"
   LINK_LIBRARIES dunecommon
   CMAKE_GUARD dune-istl_FOUND
 )
@@ -152,7 +166,7 @@ dune_add_test(NAME multirhsperftest-jacobi-nsimd-8
   SOURCES multirhsperftest-jacobi-nsimd.cc
   COMPILE_DEFINITIONS -DMAX_VECTOR_SIZE=${MAX_VECTOR_SIZE}
   COMPILE_DEFINITIONS -DTYPE=Vec8d -DRUNS=${RUNS}
-  COMPILE_FLAGS -mavx512f -mfma
+  COMPILE_FLAGS "${SIMD_EXT_FOR_VEC8D}"
   LINK_LIBRARIES dunecommon
   CMAKE_GUARD dune-istl_FOUND
 )
@@ -179,7 +193,7 @@ dune_add_test(NAME multirhsperftest-AMG-nsimd-2
   SOURCES multirhsperftest-AMG-nsimd.cc
   COMPILE_DEFINITIONS -DMAX_VECTOR_SIZE=${MAX_VECTOR_SIZE}
   COMPILE_DEFINITIONS -DTYPE=Vec2d -DRUNS=${RUNS}
-  COMPILE_FLAGS -msse2
+  COMPILE_FLAGS "${SIMD_EXT_FOR_VEC2D}"
   LINK_LIBRARIES dunecommon
   CMAKE_GUARD dune-istl_FOUND
 )
@@ -188,7 +202,7 @@ dune_add_test(NAME multirhsperftest-AMG-nsimd-4
   SOURCES multirhsperftest-AMG-nsimd.cc
   COMPILE_DEFINITIONS -DMAX_VECTOR_SIZE=${MAX_VECTOR_SIZE}
   COMPILE_DEFINITIONS -DTYPE=Vec4d -DRUNS=${RUNS}
-  COMPILE_FLAGS -mavx2 -mfma
+  COMPILE_FLAGS "${SIMD_EXT_FOR_VEC4D}"
   LINK_LIBRARIES dunecommon
   CMAKE_GUARD dune-istl_FOUND
 )
@@ -197,7 +211,7 @@ dune_add_test(NAME multirhsperftest-AMG-nsimd-8
   SOURCES multirhsperftest-AMG-nsimd.cc
   COMPILE_DEFINITIONS -DMAX_VECTOR_SIZE=${MAX_VECTOR_SIZE}
   COMPILE_DEFINITIONS -DTYPE=Vec8d -DRUNS=${RUNS}
-  COMPILE_FLAGS -mavx512f -mfma
+  COMPILE_FLAGS "${SIMD_EXT_FOR_VEC8D}"
   LINK_LIBRARIES dunecommon
   CMAKE_GUARD dune-istl_FOUND
 )

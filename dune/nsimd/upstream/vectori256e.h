@@ -3174,7 +3174,7 @@ static inline Vec2q select4(Vec4q const & a, Vec4q const & b) {
     case 3:
         return b.get_high();
     }
-    return _mm_setzero_si128();
+    return nsimd::set1<pack128_2i_t>(0);
 }
 
 // blend vectors Vec4q
@@ -3221,7 +3221,7 @@ static inline Vec4i select4(Vec8i const & a, Vec8i const & b) {
     case 3:
         return b.get_high();
     }
-    return _mm_setzero_si128();
+    return nsimd::set1<pack128_4i_t>(0);
 }
 
 // blend vectors Vec8i
@@ -3249,7 +3249,7 @@ static inline Vec8i blend8i(Vec8i const & a, Vec8i const & b) {
     const int mz = (i0<0?0:0xF) | (i1<0?0:0xF)<<4 | (i2<0?0:0xF)<<8 | (i3<0?0:0xF)<<12 | (i4<0?0:0xF)<<16 | (i5<0?0:0xF)<<20 | (i6<0?0:0xF)<<24 | (i7<0?0:0xF)<<28;
 
     if (r0 < 0) {
-        x0 = _mm_setzero_si128();
+        x0 = nsimd::set1<pack128_8i_t>(0);();
     }
     else if (((m1 ^ r0*0x4444) & 0xCCCC & mz) == 0) { 
         // i0 - i3 all from same source

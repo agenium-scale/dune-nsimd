@@ -20,6 +20,7 @@
 #ifndef INSTRSET_H
 #define INSTRSET_H 125
 
+
 // Detect 64 bit mode
 #if (defined(_M_AMD64) || defined(_M_X64) || defined(__amd64) ) && ! defined(__x86_64__)
 #define __x86_64__ 1  // There are many different macros for this, decide on only one
@@ -43,8 +44,20 @@
 #endif // instruction set defines
 #endif // INSTRSET
 
-// Include the appropriate header file for intrinsic functions
-#include <nsimd/nsimd-all.hpp>
+
+#if INSTRSET >= 9 && !defined(NSIMD_AVX512_SKYLAKE)
+#define NSIMD_AVX512_SKYLAKE
+#elif INSTRSET >=8 && !defined(NSIMD_AVX2)
+#define NSIMD_AVX2
+#elif INSTRSET >=7 && !defined(NSIMD_AVX)
+#define NSIMD_AVX
+#elif INSTRSET >=6 && !defined(NSIMD_SSE42)
+#define NSIMD_SSE42
+#elif INSTRSET >=2 && !defined(NSIMD_SSE2)
+#define NSIMD_SSE2
+#elif INSTRSET >=0 && !defined(NSIMD_CPU)
+#define NSIMD_CPU
+#endif
 
 #if INSTRSET >= 8 && !defined(__FMA__)
 // Assume that all processors that have AVX2 also have FMA3
@@ -55,6 +68,9 @@
 #define __FMA__  1
 #endif
 #endif
+
+// Include the appropriate header file for intrinsic functions
+#include <nsimd/nsimd-all.hpp>
 
 // Define integer types with known size
 #if defined(__GNUC__) || defined(__clang__) || (defined(_MSC_VER) && _MSC_VER >= 1600)

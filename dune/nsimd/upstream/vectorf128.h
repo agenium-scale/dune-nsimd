@@ -42,49 +42,34 @@
 #endif 
 
 #include "vectori128.h"  // Define integer vectors
+#include "nsimd_common.h"
 
 #ifdef NSIMD_NAMESPACE
 namespace NSIMD_NAMESPACE {
 #endif
+
 
 /*****************************************************************************
 *
 *          select functions
 *
 *****************************************************************************/
-// Select between two __m128 sources, element by element. Used in various functions 
+// Select between two pack of float sources, element by element. Used in various functions 
 // and operators. Corresponds to this pseudocode:
-// for (int i = 0; i < 4; i++) result[i] = s[i] ? a[i] : b[i];
-// Each element in s must be either 0 (false) or 0xFFFFFFFF (true). No other values are 
-// allowed. The implementation depends on the instruction set: 
-// If SSE4.1 is supported then only bit 31 in each dword of s is checked, 
-// otherwise all bits in s are used.
-static inline __m128 selectf (__m128 const & s, __m128 const & a, __m128 const & b) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_blendv_ps (b, a, s);
-#else
-    return _mm_or_ps(
-        _mm_and_ps(s,a),
-        _mm_andnot_ps(s,b));
-#endif
+// for (int i = 0; i < size; i++) result[i] = s[i] ? a[i] : b[i];
+// Each element in s must be either 0 (false) or 0xFFFFFFFF (true).
+static inline pack4f_t selectf (pack4f_t const & s, pack4f_t const & a, pack4f_t const & b) {
+    return nsimd::if_else(nsimd::to_logical(b), a, s);
 }
 
-// Same, with two __m128d sources.
+// Same, with two pack of double sources.
 // and operators. Corresponds to this pseudocode:
-// for (int i = 0; i < 2; i++) result[i] = s[i] ? a[i] : b[i];
+// for (int i = 0; i < size; i++) result[i] = s[i] ? a[i] : b[i];
 // Each element in s must be either 0 (false) or 0xFFFFFFFFFFFFFFFF (true). No other 
-// values are allowed. The implementation depends on the instruction set: 
-// If SSE4.1 is supported then only bit 63 in each dword of s is checked, 
-// otherwise all bits in s are used.
-static inline __m128d selectd (__m128d const & s, __m128d const & a, __m128d const & b) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_blendv_pd (b, a, s);
-#else
-    return _mm_or_pd(
-        _mm_and_pd(s,a),
-        _mm_andnot_pd(s,b));
-#endif
-} 
+// values are allowed.
+static inline pack2d_t selectd (pack2d_t const & s, pack2d_t const & a, pack2d_t const & b) {
+    return nsimd::if_else(nsimd::to_logical(b), a, s);
+}
 
 
 /*****************************************************************************
@@ -95,27 +80,28 @@ static inline __m128d selectd (__m128d const & s, __m128d const & a, __m128d con
 
 class Vec4fb {
 protected:
-    __m128 xmm; // Float vector
+    packl4f_t xmm; // Float vector
 public:
     // Default constructor:
     Vec4fb() {
     }
     // Constructor to build from all elements:
     Vec4fb(bool b0, bool b1, bool b2, bool b3) {
-        xmm = _mm_castsi128_ps(_mm_setr_epi32(-(int)b0, -(int)b1, -(int)b2, -(int)b3)); 
+        int f[4] = {-(int)b0, -(int)b1, -(int)b2, -(int)b3};
+        xmm = nsimd::reinterpretl<packl4f_t>(nsimd::loadla<packl128_4i_t>(f)); 
     }
     // Constructor to convert from type __m128 used in intrinsics:
-    Vec4fb(__m128 const & x) {
+    Vec4fb(packl4f_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128 used in intrinsics:
-    Vec4fb & operator = (__m128 const & x) {
+    Vec4fb & operator = (packl4f_t const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
     Vec4fb(bool b) {
-        xmm = _mm_castsi128_ps(_mm_set1_epi32(-int32_t(b)));
+        xmm = nsimd::reinterpretl<packl4f_t>(nsimd::set1l<packl128_4i_t>(-int32_t(b))); 
     }
     // Assignment operator to broadcast scalar value:
     Vec4fb & operator = (bool b) {
@@ -128,57 +114,35 @@ private: // Prevent constructing from int, etc.
 public:
     // Constructor to convert from type Vec4ib used as Boolean for integer vectors
     Vec4fb(Vec4ib const & x) {
-        xmm = _mm_castsi128_ps(x);
+        xmm = nsimd::reinterpretl<packl4f_t>(x); 
     }
     // Assignment operator to convert from type Vec4ib used as Boolean for integer vectors
     Vec4fb & operator = (Vec4ib const & x) {
-        xmm = _mm_castsi128_ps(x);
+        xmm = nsimd::reinterpretl<packl4f_t>(x); 
         return *this;
     }
     // Type cast operator to convert to __m128 used in intrinsics
-    operator __m128() const {
+    operator packl4f_t() const {
         return xmm;
     }
-    /* Clang problem:
-    The Clang compiler treats the intrinsic vector types __m128, __m128i, and __m128f as identical.
-    I have reported this problem in 2013 but it is still not fixed in 2017!
-    See the bug report at http://llvm.org/bugs/show_bug.cgi?id=17164
-    Additional problem: The version number is not consistent across platforms. The Apple build has 
-    different version numbers. We have to rely on __apple_build_version__ on the Mac platform:
-    http://llvm.org/bugs/show_bug.cgi?id=12643
-    I have received reports that there was no aliasing of vector types on __apple_build_version__ = 6020053
-    but apparently the problem has come back. The aliasing of vector types has been reported on 
-    __apple_build_version__ = 8000042
-    We have to make switches here when - hopefully - the error some day has been fixed.
-    We need different version checks with and whithout __apple_build_version__
-    */
 
-//#if (defined (__clang__) && !defined(__apple_build_version__)) || (defined(__apple_build_version__) && __apple_build_version__ < 6020000)
-#if defined (__clang__) /* && CLANG_VERSION < xxxxx */ || defined(__apple_build_version__)
-#define FIX_CLANG_VECTOR_ALIAS_AMBIGUITY  
-#else
-    // Type cast operator to convert to type Vec4ib used as Boolean for integer vectors
-    operator Vec4ib() const {
-        return _mm_castps_si128(xmm);
-    }
-#endif
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4fb const & insert(uint32_t index, bool value) {
         static const int32_t maskl[8] = {0,0,0,0,-1,0,0,0};
-        __m128 mask  = _mm_loadu_ps((float const*)(maskl+4-(index & 3))); // mask with FFFFFFFF at index position
+        packl4f_t mask  = nsimd::loadlu<packl128_4i_t>((float const*)(maskl+4-(index & 3))); // mask with FFFFFFFF at index position
         if (value) {
-            xmm = _mm_or_ps(xmm,mask);
+            xmm = nsimd::orl(xmm,mask);
         }
         else {
-            xmm = _mm_andnot_ps(mask,xmm);
+            xmm = nsimd::andnotl(mask,xmm);
         }
         return *this;
     }
     // Member function extract a single element from vector
     bool extract(uint32_t index) const {
         //return Vec4ib(*this).extract(index);
-        return Vec4ib(_mm_castps_si128(xmm)).extract(index);
+        return Vec4ib(nsimd::reinterpretl<packl128_4i_t>(xmm)).extract(index);
     }
     // Extract a single element. Operator [] can only read an element, not write.
     bool operator [] (uint32_t index) const {
@@ -198,7 +162,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec4fb operator & (Vec4fb const & a, Vec4fb const & b) {
-    return _mm_and_ps(a, b);
+    return nsimd::andl(a, b);
 }
 static inline Vec4fb operator && (Vec4fb const & a, Vec4fb const & b) {
     return a & b;
@@ -212,7 +176,7 @@ static inline Vec4fb & operator &= (Vec4fb & a, Vec4fb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4fb operator | (Vec4fb const & a, Vec4fb const & b) {
-    return _mm_or_ps(a, b);
+    return nsimd::orl(a, b);
 }
 static inline Vec4fb operator || (Vec4fb const & a, Vec4fb const & b) {
     return a | b;
@@ -226,7 +190,7 @@ static inline Vec4fb & operator |= (Vec4fb & a, Vec4fb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4fb operator ^ (Vec4fb const & a, Vec4fb const & b) {
-    return _mm_xor_ps(a, b);
+    return nsimd::xorl(a, b);
 }
 
 // vector operator ^= : bitwise xor
@@ -237,7 +201,7 @@ static inline Vec4fb & operator ^= (Vec4fb & a, Vec4fb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4fb operator ~ (Vec4fb const & a) {
-    return _mm_xor_ps(a, _mm_castsi128_ps(_mm_set1_epi32(-1)));
+    return nsimd::notl(a);
 }
 
 // vector operator ! : logical not
@@ -251,7 +215,7 @@ static inline Vec4fb operator ! (Vec4fb const & a) {
 
 // andnot: a & ~ b
 static inline Vec4fb andnot(Vec4fb const & a, Vec4fb const & b) {
-    return _mm_andnot_ps(b, a);
+    return nsimd::andnotl(b, a);
 }
 
 
@@ -263,14 +227,12 @@ static inline Vec4fb andnot(Vec4fb const & a, Vec4fb const & b) {
 
 // horizontal_and. Returns true if all bits are 1
 static inline bool horizontal_and (Vec4fb const & a) {
-    return _mm_movemask_ps(a) == 0x0F; 
-    //return horizontal_and(Vec128b(_mm_castps_si128(a)));
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one bit is 1
 static inline bool horizontal_or (Vec4fb const & a) {
-    return _mm_movemask_ps(a) != 0;
-    //return horizontal_or(Vec128b(_mm_castps_si128(a)));
+    return nsimd::any(a);
 }
 
 
@@ -282,7 +244,7 @@ static inline bool horizontal_or (Vec4fb const & a) {
 
 class Vec2db {
 protected:
-    __m128d xmm; // Double vector
+    packl2d_t xmm; // Double vector
 public:
     // Default constructor:
     Vec2db() {
@@ -290,20 +252,22 @@ public:
     // Constructor to broadcast the same value into all elements:
     // Constructor to build from all elements:
     Vec2db(bool b0, bool b1) {
-        xmm = _mm_castsi128_pd(_mm_setr_epi32(-(int)b0, -(int)b0, -(int)b1, -(int)b1)); 
+        int f[4] = {-(int)b0, -(int)b0, -(int)b1, -(int)b1};
+        xmm = nsimd::reinterpretl<packl2d_t>(nsimd::loadla<packl128_4i_t>(f)); 
     }
     // Constructor to convert from type __m128d used in intrinsics:
-    Vec2db(__m128d const & x) {
+    Vec2db(packl2d_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128d used in intrinsics:
-    Vec2db & operator = (__m128d const & x) {
+    Vec2db & operator = (packl2d_t const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
     Vec2db(bool b) {
-        xmm = _mm_castsi128_pd(_mm_set1_epi32(-int32_t(b)));
+        packl2d_t set = nsimd::set1<nsimd::packl<int>>(-int32_t(b));
+        xmm = nsimd::reinterpretl<int, double>(set);
     }
     // Assignment operator to broadcast scalar value:
     Vec2db & operator = (bool b) {
@@ -317,32 +281,28 @@ public:
     // Constructor to convert from type Vec2qb used as Boolean for integer vectors
     Vec2db(Vec2qb const & x) {
         xmm = _mm_castsi128_pd(x);
+        // xmm = nsimd::reinterpretl<unsigned int, double>(set);
     }
     // Assignment operator to convert from type Vec2qb used as Boolean for integer vectors
     Vec2db & operator = (Vec2qb const & x) {
         xmm = _mm_castsi128_pd(x);
+        // xmm = nsimd::reinterpretl<unsigned int, double>(set);
         return *this;
     }
     // Type cast operator to convert to __m128d used in intrinsics
-    operator __m128d() const {
+    operator packl2d_t() const {
         return xmm;
     }
-#ifndef FIX_CLANG_VECTOR_ALIAS_AMBIGUITY
-    // Type cast operator to convert to type Vec2qb used as Boolean for integer vectors
-    operator Vec2qb() const {
-        return _mm_castpd_si128(xmm);
-    }
-#endif
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec2db const & insert(uint32_t index, bool value) {
         static const int32_t maskl[8] = {0,0,0,0,-1,-1,0,0};
-        __m128 mask  = _mm_loadu_ps((float const*)(maskl+4-(index&1)*2)); // mask with FFFFFFFFFFFFFFFF at index position
+        packl4f_t mask  = nsimd::loadlu<packl4f_t>((float const*)(maskl+4-(index&1)*2)); // mask with FFFFFFFFFFFFFFFF at index position
         if (value) {
-            xmm = _mm_or_pd(xmm,_mm_castps_pd(mask));
+            xmm = nsimd::orl(xmm,nsimd::reinterpretl<packl2d_t>(mask));
         }
         else {
-            xmm = _mm_andnot_pd(_mm_castps_pd(mask),xmm);
+            xmm = nsimd::andnotl(nsimd::reinterpretl<packl2d_t>(mask),xmm);
         }
         return *this;
     }
@@ -368,7 +328,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec2db operator & (Vec2db const & a, Vec2db const & b) {
-    return _mm_and_pd(a, b);
+    return nsimd::andl(a, b);
 }
 static inline Vec2db operator && (Vec2db const & a, Vec2db const & b) {
     return a & b;
@@ -382,7 +342,7 @@ static inline Vec2db & operator &= (Vec2db & a, Vec2db const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2db operator | (Vec2db const & a, Vec2db const & b) {
-    return _mm_or_pd(a, b);
+    return nsimd::orl(a, b);
 }
 static inline Vec2db operator || (Vec2db const & a, Vec2db const & b) {
     return a | b;
@@ -396,7 +356,7 @@ static inline Vec2db & operator |= (Vec2db & a, Vec2db const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2db operator ^ (Vec2db const & a, Vec2db const & b) {
-    return _mm_xor_pd(a, b);
+    return nsimd::xorl(a, b);
 }
 
 // vector operator ^= : bitwise xor
@@ -407,7 +367,8 @@ static inline Vec2db & operator ^= (Vec2db & a, Vec2db const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec2db operator ~ (Vec2db const & a) {
-    return _mm_xor_pd(a, _mm_castsi128_pd(_mm_set1_epi32(-1)));
+    Vec2db b = nsimd::reinterpretl<int, double>(nsimd::set1<pack4i_t>(-1));
+    return nsimd::xorl(a, b);
 }
 
 // vector operator ! : logical not
@@ -421,7 +382,7 @@ static inline Vec2db operator ! (Vec2db const & a) {
 
 // andnot: a & ~ b
 static inline Vec2db andnot(Vec2db const & a, Vec2db const & b) {
-    return _mm_andnot_pd(b, a);
+    return nsimd::andnotl(b, a);
 }
 
 
@@ -433,14 +394,12 @@ static inline Vec2db andnot(Vec2db const & a, Vec2db const & b) {
 
 // horizontal_and. Returns true if all bits are 1
 static inline bool horizontal_and (Vec2db const & a) {
-    return _mm_movemask_pd(a) == 3;
-    //return horizontal_and(Vec128b(_mm_castpd_si128(a)));
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one bit is 1
 static inline bool horizontal_or (Vec2db const & a) {
-    return _mm_movemask_pd(a) != 0;
-    //return horizontal_or(Vec128b(_mm_castpd_si128(a)));
+    return nsimd::any(a);
 }
 
 
@@ -453,35 +412,36 @@ static inline bool horizontal_or (Vec2db const & a) {
 
 class Vec4f {
 protected:
-    __m128 xmm; // Float vector
+    pack4f_t xmm; // Float vector
 public:
     // Default constructor:
     Vec4f() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec4f(float f) {
-        xmm = _mm_set1_ps(f);
+        xmm = nsimd::set1<pack4f_t>(f);
     }
     // Constructor to build from all elements:
     Vec4f(float f0, float f1, float f2, float f3) {
-        xmm = _mm_setr_ps(f0, f1, f2, f3); 
+        float f[4] = {f0, f1, f2, f3};
+        xmm = nsimd::loada<pack4f_t>(f);
     }
     // Constructor to convert from type __m128 used in intrinsics:
-    Vec4f(__m128 const & x) {
+    Vec4f(pack4f_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128 used in intrinsics:
-    Vec4f & operator = (__m128 const & x) {
+    Vec4f & operator = (pack4f_t const & x) {
         xmm = x;
         return *this;
     }
     // Type cast operator to convert to __m128 used in intrinsics
-    operator __m128() const {
+    operator pack4f_t() const {
         return xmm;
     }
     // Member function to load from array (unaligned)
     Vec4f & load(float const * p) {
-        xmm = _mm_loadu_ps(p);
+        xmm = nsimd::loadu<pack4f_t>(p);
         return *this;
     }
     // Member function to load from array, aligned by 16
@@ -490,12 +450,12 @@ public:
     // You may use load_a instead of load if you are certain that p points to an address
     // divisible by 16.
     Vec4f & load_a(float const * p) {
-        xmm = _mm_load_ps(p);
+        xmm = nsimd::loada<pack4f_t>(p);
         return *this;
     }
     // Member function to store into array (unaligned)
     void store(float * p) const {
-        _mm_storeu_ps(p, xmm);
+        nsimd::storeu(p, xmm);
     }
     // Member function to store into array, aligned by 16
     // "store_a" is faster than "store" on older Intel processors (Pentium 4, Pentium M, Core 1,
@@ -503,74 +463,26 @@ public:
     // You may use store_a instead of store if you are certain that p points to an address
     // divisible by 16.
     void store_a(float * p) const {
-        _mm_store_ps(p, xmm);
+        nsimd::storea(p, xmm);
     }
     // Partial load. Load n elements and set the rest to 0
     Vec4f & load_partial(int n, float const * p) {
-        __m128 t1, t2;
-        switch (n) {
-        case 1:
-            xmm = _mm_load_ss(p); break;
-        case 2:
-            xmm = _mm_castpd_ps(_mm_load_sd((double const*)p)); break;
-        case 3:
-            t1 = _mm_castpd_ps(_mm_load_sd((double const*)p));
-            t2 = _mm_load_ss(p + 2);
-            xmm = _mm_movelh_ps(t1, t2); break;
-        case 4:
-            load(p); break;
-        default:
-            xmm = _mm_setzero_ps();
-        }
+        xmm = nsimd_common::load_partial<pack4f_t, packl4f_t, float>(p, n);
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, float * p) const {
-        __m128 t1;
-        switch (n) {
-        case 1:
-            _mm_store_ss(p, xmm); break;
-        case 2:
-            _mm_store_sd((double*)p, _mm_castps_pd(xmm)); break;
-        case 3:
-            _mm_store_sd((double*)p, _mm_castps_pd(xmm));
-            t1 = _mm_movehl_ps(xmm,xmm);
-            _mm_store_ss(p + 2, t1); break;
-        case 4:
-            store(p); break;
-        default:;
-        }
+        nsimd_common::store_partial<pack4f_t, packl4f_t, float>(p, n);
     }
     // cut off vector to n elements. The last 4-n elements are set to zero
     Vec4f & cutoff(int n) {
-        if (uint32_t(n) >= 4) return *this;
-        static const union {        
-            int32_t i[8];
-            float   f[8];
-        } mask = {{1,-1,-1,-1,0,0,0,0}};
-        xmm = _mm_and_ps(xmm, Vec4f().load(mask.f + 4 - n));
+        xmm = nsimd_common::cutoff(n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4f const & insert(uint32_t index, float value) {
-#if INSTRSET >= 5   // SSE4.1 supported
-        switch (index & 3) {
-        case 0:
-            xmm = _mm_insert_ps(xmm, _mm_set_ss(value), 0 << 4);  break;
-        case 1:
-            xmm = _mm_insert_ps(xmm, _mm_set_ss(value), 1 << 4);  break;
-        case 2:
-            xmm = _mm_insert_ps(xmm, _mm_set_ss(value), 2 << 4);  break;
-        default:
-            xmm = _mm_insert_ps(xmm, _mm_set_ss(value), 3 << 4);  break;
-        }
-#else
-        static const int32_t maskl[8] = {0,0,0,0,-1,0,0,0};
-        __m128 broad = _mm_set1_ps(value);  // broadcast value into all elements
-        __m128 mask  = _mm_loadu_ps((float const*)(maskl+4-(index & 3))); // mask with FFFFFFFF at index position
-        xmm = selectf(mask,broad,xmm);
-#endif
+        xmm = nsimd_common::set_bit(index, value, xmm);
         return *this;
     };
     // Member function extract a single element from vector
@@ -598,7 +510,7 @@ public:
 
 // vector operator + : add element by element
 static inline Vec4f operator + (Vec4f const & a, Vec4f const & b) {
-    return _mm_add_ps(a, b);
+    return nsimd::add(a, b);
 }
 
 // vector operator + : add vector and scalar
@@ -630,7 +542,7 @@ static inline Vec4f & operator ++ (Vec4f & a) {
 
 // vector operator - : subtract element by element
 static inline Vec4f operator - (Vec4f const & a, Vec4f const & b) {
-    return _mm_sub_ps(a, b);
+    return nsimd::sub(a, b);
 }
 
 // vector operator - : subtract vector and scalar
@@ -644,7 +556,7 @@ static inline Vec4f operator - (float a, Vec4f const & b) {
 // vector operator - : unary minus
 // Change sign bit, even for 0, INF and NAN
 static inline Vec4f operator - (Vec4f const & a) {
-    return _mm_xor_ps(a, _mm_castsi128_ps(_mm_set1_epi32(0x80000000)));
+    return nsimd::xorb(a, nsimd::reinterpret<int, float>(nsimd::set1<nsimd::pack<int>>(0x80000000)));
 }
 
 // vector operator -= : subtract
@@ -668,7 +580,7 @@ static inline Vec4f & operator -- (Vec4f & a) {
 
 // vector operator * : multiply element by element
 static inline Vec4f operator * (Vec4f const & a, Vec4f const & b) {
-    return _mm_mul_ps(a, b);
+    return nsimd::mul(a, b);
 }
 
 // vector operator * : multiply vector and scalar
@@ -687,7 +599,7 @@ static inline Vec4f & operator *= (Vec4f & a, Vec4f const & b) {
 
 // vector operator / : divide all elements by same integer
 static inline Vec4f operator / (Vec4f const & a, Vec4f const & b) {
-    return _mm_div_ps(a, b);
+    return nsimd::div(a, b);
 }
 
 // vector operator / : divide vector and scalar
@@ -706,39 +618,39 @@ static inline Vec4f & operator /= (Vec4f & a, Vec4f const & b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec4fb operator == (Vec4f const & a, Vec4f const & b) {
-    return _mm_cmpeq_ps(a, b);
+    return nsimd::eq(a, b);
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec4fb operator != (Vec4f const & a, Vec4f const & b) {
-    return _mm_cmpneq_ps(a, b);
+    return nsimd::notl(nsimd::eq(a, b));
 }
 
 // vector operator < : returns true for elements for which a < b
 static inline Vec4fb operator < (Vec4f const & a, Vec4f const & b) {
-    return _mm_cmplt_ps(a, b);
+    return nsimd::lt(a, b);
 }
 
 // vector operator <= : returns true for elements for which a <= b
 static inline Vec4fb operator <= (Vec4f const & a, Vec4f const & b) {
-    return _mm_cmple_ps(a, b);
+    return nsimd::le(a, b);
 }
 
 // vector operator > : returns true for elements for which a > b
 static inline Vec4fb operator > (Vec4f const & a, Vec4f const & b) {
-    return b < a;
+    return nsimd::gt(a, b);
 }
 
 // vector operator >= : returns true for elements for which a >= b
 static inline Vec4fb operator >= (Vec4f const & a, Vec4f const & b) {
-    return b <= a;
+    return nsimd::ge(a, b);
 }
 
 // Bitwise logical operators
 
 // vector operator & : bitwise and
 static inline Vec4f operator & (Vec4f const & a, Vec4f const & b) {
-    return _mm_and_ps(a, b);
+    return nsimd::andb(a, b);
 }
 
 // vector operator &= : bitwise and
@@ -749,15 +661,15 @@ static inline Vec4f & operator &= (Vec4f & a, Vec4f const & b) {
 
 // vector operator & : bitwise and of Vec4f and Vec4fb
 static inline Vec4f operator & (Vec4f const & a, Vec4fb const & b) {
-    return _mm_and_ps(a, b);
+    return nsimd::andb(a, nsimd::to_mask(b));
 }
 static inline Vec4f operator & (Vec4fb const & a, Vec4f const & b) {
-    return _mm_and_ps(a, b);
+    return nsimd::andb(a, b);
 }
 
 // vector operator | : bitwise or
 static inline Vec4f operator | (Vec4f const & a, Vec4f const & b) {
-    return _mm_or_ps(a, b);
+    return nsimd::orb(a, b);
 }
 
 // vector operator |= : bitwise or
@@ -768,7 +680,7 @@ static inline Vec4f & operator |= (Vec4f & a, Vec4f const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4f operator ^ (Vec4f const & a, Vec4f const & b) {
-    return _mm_xor_ps(a, b);
+    return nsimd::xorb(a, b);
 }
 
 // vector operator ^= : bitwise xor
@@ -811,39 +723,28 @@ static inline Vec4f if_mul (Vec4fb const & f, Vec4f const & a, Vec4f const & b) 
 
 // Horizontal add: Calculates the sum of all vector elements.
 static inline float horizontal_add (Vec4f const & a) {
-#if  INSTRSET >= 3  // SSE3
-    __m128 t1 = _mm_hadd_ps(a,a);
-    __m128 t2 = _mm_hadd_ps(t1,t1);
-    return _mm_cvtss_f32(t2);        
-#else
-    __m128 t1 = _mm_movehl_ps(a,a);
-    __m128 t2 = _mm_add_ps(a,t1);
-    __m128 t3 = _mm_shuffle_ps(t2,t2,1);
-    __m128 t4 = _mm_add_ss(t2,t3);
-    return _mm_cvtss_f32(t4);
-#endif
+    return nsimd:_common::horizontal_add(a);
 }
 
 // function max: a > b ? a : b
 static inline Vec4f max(Vec4f const & a, Vec4f const & b) {
-    return _mm_max_ps(a,b);
+    return nsimd::max(a,b);
 }
 
 // function min: a < b ? a : b
 static inline Vec4f min(Vec4f const & a, Vec4f const & b) {
-    return _mm_min_ps(a,b);
+    return nsimd::min(a,b);
 }
 
 // function abs: absolute value
 // Removes sign bit, even for -0.0f, -INF and -NAN
 static inline Vec4f abs(Vec4f const & a) {
-    __m128 mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
-    return _mm_and_ps(a,mask);
+    return nsimd::abs(a);
 }
 
 // function sqrt: square root
 static inline Vec4f sqrt(Vec4f const & a) {
-    return _mm_sqrt_ps(a);
+    return nsimd::sqrt(a);
 }
 
 // function square: a * a
@@ -945,107 +846,44 @@ static inline Vec4f pow(Vec4f const & a, Const_int_t<n>) {
 // implement the same as macro pow_const(vector, int)
 #define pow_const(x,n) pow_n<n>(x)
 
-
-// avoid unsafe optimization in function round
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && INSTRSET < 5
-static inline Vec4f round(Vec4f const & a) __attribute__ ((optimize("-fno-unsafe-math-optimizations")));
-#elif defined(__clang__) && INSTRSET < 5
-// static inline Vec4f round(Vec4f const & a) __attribute__ ((optnone));
-// This doesn't work, but current versions of Clang (3.5) don't optimize away signedmagic, even with -funsafe-math-optimizations
-// Add volatile to b if future versions fail
-#elif defined (_MSC_VER) || defined(__INTEL_COMPILER) && INSTRSET < 5
-#pragma float_control(push) 
-#pragma float_control(precise,on)
-#define FLOAT_CONTROL_PRECISE_FOR_ROUND
-#endif
 // function round: round to nearest integer (even). (result as float vector)
 static inline Vec4f round(Vec4f const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_ps(a, 8);
-#else // SSE2. Use magic number method
-    // Note: assume MXCSR control register is set to rounding
-    // (don't use conversion to int, it will limit the value to +/- 2^31)
-    Vec4f signmask    = _mm_castsi128_ps(constant4ui<0x80000000,0x80000000,0x80000000,0x80000000>());  // -0.0
-    Vec4f magic       = _mm_castsi128_ps(constant4ui<0x4B000000,0x4B000000,0x4B000000,0x4B000000>());  // magic number = 2^23
-    Vec4f sign        = _mm_and_ps(a, signmask);                                    // signbit of a
-    Vec4f signedmagic = _mm_or_ps(magic, sign);                                     // magic number with sign of a
-    // volatile
-    Vec4f b = a + signedmagic;                                                      // round by adding magic number
-    return b - signedmagic;                                                         // .. and subtracting it again
-#endif
+    nsimd::round_to_even(a);
 }
-#ifdef FLOAT_CONTROL_PRECISE_FOR_ROUND
-#pragma float_control(pop)
-#endif
 
 // function truncate: round towards zero. (result as float vector)
 static inline Vec4f truncate(Vec4f const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_ps(a, 3+8);
-#else  // SSE2. Use magic number method (conversion to int would limit the value to 2^31)
-    uint32_t t1 = _mm_getcsr();        // MXCSR
-    uint32_t t2 = t1 | (3 << 13);      // bit 13-14 = 11
-    _mm_setcsr(t2);                    // change MXCSR
-    Vec4f r = round(a);                // use magic number method
-    _mm_setcsr(t1);                    // restore MXCSR
-    return r;
-#endif
+    return nsimd::trunc(a);
 }
 
 // function floor: round towards minus infinity. (result as float vector)
 static inline Vec4f floor(Vec4f const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_ps(a, 1+8);
-#else  // SSE2. Use magic number method (conversion to int would limit the value to 2^31)
-    uint32_t t1 = _mm_getcsr();        // MXCSR
-    uint32_t t2 = t1 | (1 << 13);      // bit 13-14 = 01
-    _mm_setcsr(t2);                    // change MXCSR
-    Vec4f r = round(a);                // use magic number method
-    _mm_setcsr(t1);                    // restore MXCSR
-    return r;
-#endif
+    return nsimd::floor(a);
 }
 
 // function ceil: round towards plus infinity. (result as float vector)
 static inline Vec4f ceil(Vec4f const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_ps(a, 2+8);
-#else  // SSE2. Use magic number method (conversion to int would limit the value to 2^31)
-    uint32_t t1 = _mm_getcsr();        // MXCSR
-    uint32_t t2 = t1 | (2 << 13);      // bit 13-14 = 10
-    _mm_setcsr(t2);                    // change MXCSR
-    Vec4f r = round(a);                // use magic number method
-    _mm_setcsr(t1);                    // restore MXCSR
-    return r;
-#endif
+    return nsimd::ceil(a);
 }
 
 // function round_to_int: round to nearest integer (even). (result as integer vector)
 static inline Vec4i round_to_int(Vec4f const & a) {
-    // Note: assume MXCSR control register is set to rounding
-    return _mm_cvtps_epi32(a);
+    return nsimd::cvt<float, int>(a);
 }
 
 // function truncate_to_int: round towards zero. (result as integer vector)
 static inline Vec4i truncate_to_int(Vec4f const & a) {
-    return _mm_cvttps_epi32(a);
+    return _mm_cvttps_epi32(a.native_register());
 }
 
 // function to_float: convert integer vector to float vector
 static inline Vec4f to_float(Vec4i const & a) {
-    return _mm_cvtepi32_ps(a);
+    return nsimd::cvt<int, float>(a);
 }
 
 // function to_float: convert unsigned integer vector to float vector
 static inline Vec4f to_float(Vec4ui const & a) {
-#ifdef __AVX512VL__
-    return _mm_cvtepu32_ps(a);
-#else
-    Vec4f b = to_float(Vec4i(a & 0x7FFFFFFF));             // 31 bits
-    Vec4i c = Vec4i(a) >> 31;                              // generate mask from highest bit
-    Vec4f d = Vec4f(2147483648.f) & Vec4f(_mm_castsi128_ps(c));// mask floating point constant 2^31
-    return b + d;
-#endif
+    nsimd::cvt<pack4f_t>(a);
 }
 
 
@@ -1053,91 +891,36 @@ static inline Vec4f to_float(Vec4ui const & a) {
 
 // approximate reciprocal (Faster than 1.f / a. relative accuracy better than 2^-11)
 static inline Vec4f approx_recipr(Vec4f const & a) {
-#if INSTRSET >= 9  // use more accurate version if available. (none of these will raise exceptions on zero)
-#ifdef __AVX512ER__  // AVX512ER: full precision
-    // todo: if future processors have both AVX512ER and AVX512VL: _mm128_rcp28_round_ps(a, _MM_FROUND_NO_EXC);
-    return _mm512_castps512_ps128(_mm512_rcp28_round_ps(_mm512_castps128_ps512(a), _MM_FROUND_NO_EXC));
-#elif defined __AVX512VL__  // AVX512VL: 14 bit precision
-    return _mm_rcp14_ps(a);
-#else  // AVX512F: 14 bit precision
-    return _mm512_castps512_ps128(_mm512_rcp14_ps(_mm512_castps128_ps512(a)));
-#endif
-#else  // AVX: 11 bit precision
-    return _mm_rcp_ps(a);
-#endif
+    return nsimd::rcp11(a);
 }
 
 // approximate reciprocal squareroot (Faster than 1.f / sqrt(a). Relative accuracy better than 2^-11)
 static inline Vec4f approx_rsqrt(Vec4f const & a) {
-#if INSTRSET >= 9  // use more accurate version if available. (none of these will raise exceptions on zero)
-#ifdef __AVX512ER__  // AVX512ER: full precision
-    // todo: if future processors have both AVX512ER and AVX521VL: _mm128_rsqrt28_round_ps(a, _MM_FROUND_NO_EXC);
-    return _mm512_castps512_ps128(_mm512_rsqrt28_round_ps(_mm512_castps128_ps512(a), _MM_FROUND_NO_EXC));
-#elif defined __AVX512VL__  // AVX512VL: 14 bit precision
-    return _mm_rsqrt14_ps(a);
-#else  // AVX512F: 14 bit precision
-    return _mm512_castps512_ps128(_mm512_rsqrt14_ps(_mm512_castps128_ps512(a)));
-#endif
-#else  // AVX: 11 bit precision
-    return _mm_rsqrt_ps(a);
-#endif
+    return nsimd::rsqrt11(a);
 }
 
 // Fused multiply and add functions
 
 // Multiply and add
 static inline Vec4f mul_add(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-#ifdef __FMA__
-    return _mm_fmadd_ps(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_macc_ps(a, b, c);
-#else
-    return a * b + c;
-#endif
+    return nsimd::fma(a, b, c);
 }
 
 // Multiply and subtract
 static inline Vec4f mul_sub(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-#ifdef __FMA__
-    return _mm_fmsub_ps(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_msub_ps(a, b, c);
-#else
-    return a * b - c;
-#endif
+    return nsimd::fms(a, b, c);
 }
 
 // Multiply and inverse subtract
 static inline Vec4f nmul_add(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-#ifdef __FMA__
-    return _mm_fnmadd_ps(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_nmacc_ps(a, b, c);
-#else
-    return c - a * b;
-#endif
+    return nsimd::fnma(a, b, c);
 }
 
 
 // Multiply and subtract with extra precision on the intermediate calculations, 
 // even if FMA instructions not supported, using Veltkamp-Dekker split
 static inline Vec4f mul_sub_x(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-#ifdef __FMA__
-    return _mm_fmsub_ps(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_msub_ps(a, b, c);
-#else
-    // calculate a * b - c with extra precision
-    Vec4i upper_mask = -(1 << 12);                         // mask to remove lower 12 bits
-    Vec4f a_high = a & Vec4f(_mm_castsi128_ps(upper_mask));// split into high and low parts
-    Vec4f b_high = b & Vec4f(_mm_castsi128_ps(upper_mask));
-    Vec4f a_low  = a - a_high;
-    Vec4f b_low  = b - b_high;
-    Vec4f r1 = a_high * b_high;                            // this product is exact
-    Vec4f r2 = r1 - c;                                     // subtract c from high product
-    Vec4f r3 = r2 + (a_high * b_low + b_high * a_low) + a_low * b_low; // add rest of product
-    return r3; // + ((r2 - r1) + c);
-#endif
+    return nsimd::fnms(a, b, c);
 }
 
 // Math functions using fast bit manipulation

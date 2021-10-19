@@ -45,6 +45,8 @@
 #define VECTORI128_H
 
 #include "instrset.h"  // Select supported instruction set
+#include "vector_types.h"
+#include "nsimd_common.h"
 
 #if INSTRSET < 2   // SSE2 required
 #error Please compile for the SSE2 instruction set or higher
@@ -60,8 +62,6 @@ namespace NSIMD_NAMESPACE {
 *
 *****************************************************************************/
 class Vec128b {
-protected:
-    __m128i xmm; // Integer vector
 public:
     // Default constructor:
     Vec128b() {
@@ -143,7 +143,7 @@ public:
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
     bool operator [] (uint32_t index) const {
-        return get_bit(index) != 0;
+        return nsimd_common::get_bit(index) != 0;
     }
     static int size() {
         return 128;
@@ -213,12 +213,10 @@ static inline Vec128b andnot (Vec128b const & a, Vec128b const & b) {
 // Generate a constant vector of 4 integers stored in memory.
 // Can be converted to any integer vector type
 template <int32_t i0, int32_t i1, int32_t i2, int32_t i3>
-static inline __m128i constant4i() {
-    static const union {
-        int     i[4];
-        __m128i xmm;
-    } u = {{i0,i1,i2,i3}};
-    return u.xmm;
+static inline pack128_4i_t constant4i() {
+    int data[4] = {i0, i1, i2, i3};
+    pack128_4i_t res = nsimd::loadu<pack128_4i_t>(data);
+    return res;
 }
 
 template <uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3>
@@ -238,14 +236,8 @@ static inline __m128i constant4ui() {
 // The implementation depends on the instruction set: 
 // If SSE4.1 is supported then only bit 7 in each byte of s is checked, 
 // otherwise all bits in s are used.
-static inline __m128i selectb (__m128i const & s, __m128i const & a, __m128i const & b) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_blendv_epi8 (b, a, s);
-#else
-    return _mm_or_si128(
-        _mm_and_si128(s,a),
-        _mm_andnot_si128(s,b));
-#endif
+static inline pack128_16i_t selectb (pack128_16i_t const & s, pack128_16i_t const & a, pack128_16i_t const & b) {
+    return nsimd::if_else(nsimd::to_logical(b), a, s);
 }
 
 
@@ -258,40 +250,12 @@ static inline __m128i selectb (__m128i const & s, __m128i const & a, __m128i con
 
 // horizontal_and. Returns true if all bits are 1
 static inline bool horizontal_and (Vec128b const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported. Use PTEST
-    return _mm_testc_si128(a,constant4i<-1,-1,-1,-1>()) != 0;
-#else
-    __m128i t1 = _mm_unpackhi_epi64(a,a);                  // get 64 bits down
-    __m128i t2 = _mm_and_si128(a,t1);                      // and 64 bits
-#ifdef __x86_64__
-    int64_t t5 = _mm_cvtsi128_si64(t2);                    // transfer 64 bits to integer
-    return  t5 == int64_t(-1);
-#else
-    __m128i t3 = _mm_srli_epi64(t2,32);                    // get 32 bits down
-    __m128i t4 = _mm_and_si128(t2,t3);                     // and 32 bits
-    int     t5 = _mm_cvtsi128_si32(t4);                    // transfer 32 bits to integer
-    return  t5 == -1;
-#endif  // __x86_64__
-#endif  // INSTRSET
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one bit is 1
 static inline bool horizontal_or (Vec128b const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported. Use PTEST
-    return ! _mm_testz_si128(a,a);
-#else
-    __m128i t1 = _mm_unpackhi_epi64(a,a);                  // get 64 bits down
-    __m128i t2 = _mm_or_si128(a,t1);                       // and 64 bits
-#ifdef __x86_64__
-    int64_t t5 = _mm_cvtsi128_si64(t2);                    // transfer 64 bits to integer
-    return  t5 != int64_t(0);
-#else
-    __m128i t3 = _mm_srli_epi64(t2,32);                    // get 32 bits down
-    __m128i t4 = _mm_or_si128(t2,t3);                      // and 32 bits
-    int     t5 = _mm_cvtsi128_si32(t4);                    // transfer to integer
-    return  t5 != 0;
-#endif  // __x86_64__
-#endif  // INSTRSET
+    return nsimd::any(a);
 }
 
 
@@ -303,107 +267,66 @@ static inline bool horizontal_or (Vec128b const & a) {
 *****************************************************************************/
 
 class Vec16c : public Vec128b {
+protected:
+    pack128_16i_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec16c() {
+    }// Constructor to convert from type __m128i used in intrinsics:
+    Vec128b(pack128_16i_t const & x) {
+        xmm = x;
     }
     // Constructor to broadcast the same value into all elements:
     Vec16c(int i) {
-        xmm = _mm_set1_epi8((char)i);
+        xmm = nsimd::set1<pack128_16i_t>((char)i);
     }
     // Constructor to build from all elements:
     Vec16c(int8_t i0, int8_t i1, int8_t i2, int8_t i3, int8_t i4, int8_t i5, int8_t i6, int8_t i7,
         int8_t i8, int8_t i9, int8_t i10, int8_t i11, int8_t i12, int8_t i13, int8_t i14, int8_t i15) {
-        xmm = _mm_setr_epi8(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15);
+        int8_t vec[16] = {i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15};
+        xmm = nsimd::loada<pack128_16i_t>(vec);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec16c(__m128i const & x) {
+    Vec16c(pack128_16i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec16c & operator = (__m128i const & x) {
+    Vec16c & operator = (pack128_16i_t const & x) {
         xmm = x;
         return *this;
     }
     // Type cast operator to convert to __m128i used in intrinsics
-    operator __m128i() const {
+    operator pack128_16i_t() const {
         return xmm;
     }
     // Member function to load from array (unaligned)
     Vec16c & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_16i_t>((pack128_16i_t const*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec16c & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_16i_t>((pack128_16i_t const*)p);
         return *this;
     }
     // Partial load. Load n elements and set the rest to 0
     Vec16c & load_partial(int n, void const * p) {
-        if      (n >= 16) load(p);
-        else if (n <= 0)  *this = 0;
-        else if (((int)(intptr_t)p & 0xFFF) < 0xFF0) {
-            // p is at least 16 bytes from a page boundary. OK to read 16 bytes
-            load(p);
-        }
-        else {
-            // worst case. read 1 byte at a time and suffer store forwarding penalty
-            char x[16];
-            for (int i = 0; i < n; i++) x[i] = ((char const *)p)[i];
-            load(x);
-        }
-        cutoff(n);
+        xmm = nsimd_common::load_partial<pack128_16i_t, packl128_16i_t, char>(p, n)
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, void * p) const {
-        if (n >= 16) {
-            store(p);
-            return;
-        }
-        if (n <= 0) return;
-        // we are not using _mm_maskmoveu_si128 because it is too slow on many processors
-        union {        
-            int8_t  c[16];
-            int16_t s[8];
-            int32_t i[4];
-            int64_t q[2];
-        } u;
-        store(u.c);
-        int j = 0;
-        if (n & 8) {
-            *(int64_t*)p = u.q[0];
-            j += 8;
-        }
-        if (n & 4) {
-            ((int32_t*)p)[j/4] = u.i[j/4];
-            j += 4;
-        }
-        if (n & 2) {
-            ((int16_t*)p)[j/2] = u.s[j/2];
-            j += 2;
-        }
-        if (n & 1) {
-            ((int8_t*)p)[j]    = u.c[j];
-        }
+        nsimd_common::store_partial<pack128_16i_t, packl128_16i_t, char>(p, n, xmm);
     }
     // cut off vector to n elements. The last 16-n elements are set to zero
     Vec16c & cutoff(int n) {
-        if (uint32_t(n) >= 16) return *this;
-        static const char mask[32] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-            0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-        *this &= Vec16c().load(mask+16-n);
+        xmm = nsimd_common::cutoff<pack128_16i_t, packl128_16i_t>(xmm, n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec16c const & insert(uint32_t index, int8_t value) {
-        static const int8_t maskl[32] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-            -1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-        __m128i broad = _mm_set1_epi8(value);  // broadcast value into all elements
-        __m128i mask  = _mm_loadu_si128((__m128i const*)(maskl+16-(index & 0x0F))); // mask with FF at index position
-        xmm = selectb(mask,broad,xmm);
+        xmm = nsimd_common::set_bit<pack128_16i_t, char>(index, value, xmm)
         return *this;
     }
     // Member function extract a single element from vector
@@ -429,26 +352,30 @@ public:
 *****************************************************************************/
 
 class Vec16cb : public Vec16c {
+protected:
+    packl128_16i_t xmm; // Integer vector
 public:
     // Default constructor
     Vec16cb() {}
     // Constructor to build from all elements:
     Vec16cb(bool x0, bool x1, bool x2, bool x3, bool x4, bool x5, bool x6, bool x7,
-        bool x8, bool x9, bool x10, bool x11, bool x12, bool x13, bool x14, bool x15) {
-        xmm = Vec16c(-int8_t(x0), -int8_t(x1), -int8_t(x2), -int8_t(x3), -int8_t(x4), -int8_t(x5), -int8_t(x6), -int8_t(x7), 
-            -int8_t(x8), -int8_t(x9), -int8_t(x10), -int8_t(x11), -int8_t(x12), -int8_t(x13), -int8_t(x14), -int8_t(x15));
+        bool x8, bool x9, bool x10, bool x11, bool x12, bool x13, bool x14, bool x15) {     
+        int8_t vec[16] = {-int8_t(x0), -int8_t(x1), -int8_t(x2), -int8_t(x3), -int8_t(x4), -int8_t(x5), -int8_t(x6), -int8_t(x7), 
+            -int8_t(x8), -int8_t(x9), -int8_t(x10), -int8_t(x11), -int8_t(x12), -int8_t(x13), -int8_t(x14), -int8_t(x15)};
+        xmm = nsimd::loadla<packl128_16i_t>(vec);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec16cb(__m128i const & x) {
+    Vec16cb(packl128_16i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec16cb & operator = (__m128i const & x) {
+    Vec16cb & operator = (packl128_16i_t const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
-    Vec16cb(bool b) : Vec16c(-int8_t(b)) {
+    Vec16cb(bool b) {
+        xmm = nsimd::loadla<pack128_16i_t>(nsimd::set1l<packl128_16i_t>(-int8_t(b)));
     }
     // Assignment operator to broadcast scalar value:
     Vec16cb & operator = (bool b) {
@@ -459,18 +386,25 @@ private: // Prevent constructing from int, etc.
     Vec16cb(int b);
     Vec16cb & operator = (int x);
 public:
-    Vec16cb & insert (int index, bool a) {
-        Vec16c::insert(index, -(int)a);
+    Vec16cb & insert(int index, bool value) {
+        xmm = nsimd_common::set_bit<packl128_16i_t, char>(index, -int8_t(value), xmm);
         return *this;
     }
     // Member function extract a single element from vector
-    bool extract(uint32_t index) const {
-        return Vec16c::extract(index) != 0;
+    int8_t extract(uint32_t index) const {
+        int8_t x[16];
+        store(x);
+        return x[index & 0x0F] != 0;
     }
+
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
     bool operator [] (uint32_t index) const {
         return extract(index);
+    }
+    // Type cast operator to convert to __m128i used in intrinsics
+    operator packl128_16i_t() const {
+        return xmm;
     }
 };
 
@@ -483,7 +417,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec16cb operator & (Vec16cb const & a, Vec16cb const & b) {
-    return Vec16cb(Vec128b(a) & Vec128b(b));
+    return nsimd::andl(a, b);
 }
 static inline Vec16cb operator && (Vec16cb const & a, Vec16cb const & b) {
     return a & b;
@@ -496,7 +430,7 @@ static inline Vec16cb & operator &= (Vec16cb & a, Vec16cb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec16cb operator | (Vec16cb const & a, Vec16cb const & b) {
-    return Vec16cb(Vec128b(a) | Vec128b(b));
+    return nsimd::orl(a, b);
 }
 static inline Vec16cb operator || (Vec16cb const & a, Vec16cb const & b) {
     return a | b;
@@ -509,7 +443,7 @@ static inline Vec16cb & operator |= (Vec16cb & a, Vec16cb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec16cb operator ^ (Vec16cb const & a, Vec16cb const & b) {
-    return Vec16cb(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorl(a, b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec16cb & operator ^= (Vec16cb & a, Vec16cb const & b) {
@@ -519,7 +453,7 @@ static inline Vec16cb & operator ^= (Vec16cb & a, Vec16cb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec16cb operator ~ (Vec16cb const & a) {
-    return Vec16cb( ~ Vec128b(a));
+    return nsimd::notl(a);
 }
 
 // vector operator ! : element not
@@ -529,23 +463,19 @@ static inline Vec16cb operator ! (Vec16cb const & a) {
 
 // vector function andnot
 static inline Vec16cb andnot (Vec16cb const & a, Vec16cb const & b) {
-    return Vec16cb(andnot(Vec128b(a), Vec128b(b)));
+    return nsimd::andnotl(a, b);
 }
 
 // Horizontal Boolean functions for Vec16cb
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec16cb const & a) {
-    return _mm_movemask_epi8(a) == 0xFFFF;
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec16cb const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported. Use PTEST
-    return !_mm_testz_si128(a, a);
-#else
-    return _mm_movemask_epi8(a) != 0;
-#endif
+    return nsimd::any(a);
 } 
 
 
@@ -557,7 +487,7 @@ static inline bool horizontal_or(Vec16cb const & a) {
 
 // vector operator + : add element by element
 static inline Vec16c operator + (Vec16c const & a, Vec16c const & b) {
-    return _mm_add_epi8(a, b);
+    return nsimd::add(a, b);
 }
 
 // vector operator += : add
@@ -581,12 +511,12 @@ static inline Vec16c & operator ++ (Vec16c & a) {
 
 // vector operator - : subtract element by element
 static inline Vec16c operator - (Vec16c const & a, Vec16c const & b) {
-    return _mm_sub_epi8(a, b);
+    return nsimd::sub(a, b);
 }
 
 // vector operator - : unary minus
 static inline Vec16c operator - (Vec16c const & a) {
-    return _mm_sub_epi8(_mm_setzero_si128(), a);
+    return nsimd::sub(nsimd::set1<pack128_16i_t>(a), a);
 }
 
 // vector operator -= : add
@@ -610,15 +540,7 @@ static inline Vec16c & operator -- (Vec16c & a) {
 
 // vector operator * : multiply element by element
 static inline Vec16c operator * (Vec16c const & a, Vec16c const & b) {
-    // There is no 8-bit multiply in SSE2. Split into two 16-bit multiplies
-    __m128i aodd    = _mm_srli_epi16(a,8);                 // odd numbered elements of a
-    __m128i bodd    = _mm_srli_epi16(b,8);                 // odd numbered elements of b
-    __m128i muleven = _mm_mullo_epi16(a,b);                // product of even numbered elements
-    __m128i mulodd  = _mm_mullo_epi16(aodd,bodd);          // product of odd  numbered elements
-            mulodd  = _mm_slli_epi16(mulodd,8);            // put odd numbered elements back in place
-    __m128i mask    = _mm_set1_epi32(0x00FF00FF);          // mask for even positions
-    __m128i product = selectb(mask,muleven,mulodd);        // interleave even and odd
-    return product;
+    return nsimd::mul(a, b);
 }
 
 // vector operator *= : multiply
@@ -629,101 +551,85 @@ static inline Vec16c & operator *= (Vec16c & a, Vec16c const & b) {
 
 // vector operator << : shift left all elements
 static inline Vec16c operator << (Vec16c const & a, int b) {
-    uint32_t mask = (uint32_t)0xFF >> (uint32_t)b;         // mask to remove bits that are shifted out
-    __m128i am    = _mm_and_si128(a,_mm_set1_epi8((char)mask));  // remove bits that will overflow
-    __m128i res   = _mm_sll_epi16(am,_mm_cvtsi32_si128(b));// 16-bit shifts
-    return res;
+    return nsimd::shl(a, b);
 }
 
 // vector operator <<= : shift left
 static inline Vec16c & operator <<= (Vec16c & a, int b) {
-    a = a << b;
+    a = nsimd::shl(a, b);
     return a;
 }
 
 // vector operator >> : shift right arithmetic all elements
 static inline Vec16c operator >> (Vec16c const & a, int b) {
-    __m128i aeven = _mm_slli_epi16(a,8);                   // even numbered elements of a. get sign bit in position
-            aeven = _mm_sra_epi16(aeven,_mm_cvtsi32_si128(b+8)); // shift arithmetic, back to position
-    __m128i aodd  = _mm_sra_epi16(a,_mm_cvtsi32_si128(b)); // shift odd numbered elements arithmetic
-    __m128i mask    = _mm_set1_epi32(0x00FF00FF);          // mask for even positions
-    __m128i res     = selectb(mask,aeven,aodd);            // interleave even and odd
-    return res;
+    return nsimd::shr(a, b);
 }
 
 // vector operator >>= : shift right arithmetic
 static inline Vec16c & operator >>= (Vec16c & a, int b) {
-    a = a >> b;
+    a = nsimd::shr(a, b);
     return a;
 }
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec16cb operator == (Vec16c const & a, Vec16c const & b) {
-    return _mm_cmpeq_epi8(a,b);
+    return nsimd::eq(a,b);
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec16cb operator != (Vec16c const & a, Vec16c const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec16cb)_mm_comneq_epi8(a,b);
-#else  // SSE2 instruction set
-    return Vec16cb(Vec16c(~(a == b)));
-#endif
+    return nsimd::ne(a,b);
 }
 
 // vector operator > : returns true for elements for which a > b (signed)
 static inline Vec16cb operator > (Vec16c const & a, Vec16c const & b) {
-    return _mm_cmpgt_epi8(a,b);
+    return nsimd::gt(a,b);
 }
 
 // vector operator < : returns true for elements for which a < b (signed)
 static inline Vec16cb operator < (Vec16c const & a, Vec16c const & b) {
-    return b > a;
+    return nsimd::lt(a, b);
 }
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec16cb operator >= (Vec16c const & a, Vec16c const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec16cb)_mm_comge_epi8(a,b);
-#else  // SSE2 instruction set
-    return Vec16cb(Vec16c(~(b > a)));
-#endif
+    return nsimd::ge(a,b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
 static inline Vec16cb operator <= (Vec16c const & a, Vec16c const & b) {
-    return b >= a;
+    return nsimd::le(a,b);
 }
 
 // vector operator & : bitwise and
 static inline Vec16c operator & (Vec16c const & a, Vec16c const & b) {
-    return Vec16c(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a,b);
 }
 static inline Vec16c operator && (Vec16c const & a, Vec16c const & b) {
     return a & b;
 }
 // vector operator &= : bitwise and
 static inline Vec16c & operator &= (Vec16c & a, Vec16c const & b) {
-    a = a & b;
+    a = nsimd::andb(a, b);
     return a;
 }
 
 // vector operator | : bitwise or
 static inline Vec16c operator | (Vec16c const & a, Vec16c const & b) {
-    return Vec16c(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a, b);
 }
 static inline Vec16c operator || (Vec16c const & a, Vec16c const & b) {
     return a | b;
 }
 // vector operator |= : bitwise or
 static inline Vec16c & operator |= (Vec16c & a, Vec16c const & b) {
-    a = a | b;
+    a = nsimd::orb(a, b);
     return a;
 }
 
 // vector operator ^ : bitwise xor
 static inline Vec16c operator ^ (Vec16c const & a, Vec16c const & b) {
-    return Vec16c(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a, b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec16c & operator ^= (Vec16c & a, Vec16c const & b) {
@@ -733,12 +639,12 @@ static inline Vec16c & operator ^= (Vec16c & a, Vec16c const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec16c operator ~ (Vec16c const & a) {
-    return Vec16c( ~ Vec128b(a));
+    return nsimd::notb(a);
 }
 
 // vector operator ! : logical not, returns true for elements == 0
 static inline Vec16cb operator ! (Vec16c const & a) {
-    return _mm_cmpeq_epi8(a,_mm_setzero_si128());
+    return nsimd::eq(a, nsimd::set1<pack128_16i_t>(char(0)));
 }
 
 // Functions for this class
@@ -758,107 +664,55 @@ static inline Vec16c if_add (Vec16cb const & f, Vec16c const & a, Vec16c const &
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int32_t horizontal_add (Vec16c const & a) {
-    __m128i sum1 = _mm_sad_epu8(a,_mm_setzero_si128());
-    __m128i sum2 = _mm_shuffle_epi32(sum1,2);
-    __m128i sum3 = _mm_add_epi16(sum1,sum2);
-    int8_t  sum4 = (int8_t)_mm_cvtsi128_si32(sum3);        // truncate to 8 bits
-    return  sum4;                                          // sign extend to 32 bits
+    return nsimd::addv(a);                                         // sign extend to 32 bits
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Each element is sign-extended before addition to avoid overflow
 static inline int32_t horizontal_add_x (Vec16c const & a) {
-#ifdef __XOP__       // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epi8(a);
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // high element
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);              // sum
-    return          _mm_cvtsi128_si32(sum3);
-#elif  INSTRSET >= 4  // SSSE3
-    __m128i aeven = _mm_slli_epi16(a,8);                   // even numbered elements of a. get sign bit in position
-            aeven = _mm_srai_epi16(aeven,8);               // sign extend even numbered elements
-    __m128i aodd  = _mm_srai_epi16(a,8);                   // sign extend odd  numbered elements
-    __m128i sum1  = _mm_add_epi16(aeven,aodd);             // add even and odd elements
-    __m128i sum2  = _mm_hadd_epi16(sum1,sum1);             // horizontally add 8 elements in 3 steps
-    __m128i sum3  = _mm_hadd_epi16(sum2,sum2);
-    __m128i sum4  = _mm_hadd_epi16(sum3,sum3);
-    int16_t sum5  = (int16_t)_mm_cvtsi128_si32(sum4);      // 16 bit sum
-    return  sum5;                                          // sign extend to 32 bits
-#else                 // SSE2
-    __m128i aeven = _mm_slli_epi16(a,8);                   // even numbered elements of a. get sign bit in position
-            aeven = _mm_srai_epi16(aeven,8);               // sign extend even numbered elements
-    __m128i aodd  = _mm_srai_epi16(a,8);                   // sign extend odd  numbered elements
-    __m128i sum1  = _mm_add_epi16(aeven,aodd);             // add even and odd elements
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // 4 high elements
-    __m128i sum3  = _mm_add_epi16(sum1,sum2);              // 4 sums
-    __m128i sum4  = _mm_shuffle_epi32(sum3,0x01);          // 2 high elements
-    __m128i sum5  = _mm_add_epi16(sum3,sum4);              // 2 sums
-    __m128i sum6  = _mm_shufflelo_epi16(sum5,0x01);        // 1 high element
-    __m128i sum7  = _mm_add_epi16(sum5,sum6);              // 1 sum
-    int16_t sum8  = _mm_cvtsi128_si32(sum7);               // 16 bit sum
-    return  sum8;                                          // sign extend to 32 bits
-#endif
+    return nsimd::addv(a);
 }
 
 
 // function add_saturated: add element by element, signed with saturation
 static inline Vec16c add_saturated(Vec16c const & a, Vec16c const & b) {
-    return _mm_adds_epi8(a, b);
+    return nsimd::adds(a,b);
 }
 
 // function sub_saturated: subtract element by element, signed with saturation
 static inline Vec16c sub_saturated(Vec16c const & a, Vec16c const & b) {
-    return _mm_subs_epi8(a, b);
+    return nsimd::subs(a,b);
 }
 
 // function max: a > b ? a : b
 static inline Vec16c max(Vec16c const & a, Vec16c const & b) {
-#if INSTRSET >= 5   // SSE4.1
-    return _mm_max_epi8(a,b);
-#else  // SSE2
-    __m128i signbit = _mm_set1_epi32(0x80808080);
-    __m128i a1      = _mm_xor_si128(a,signbit);            // add 0x80
-    __m128i b1      = _mm_xor_si128(b,signbit);            // add 0x80
-    __m128i m1      = _mm_max_epu8(a1,b1);                 // unsigned max
-    return  _mm_xor_si128(m1,signbit);                     // sub 0x80
-#endif
+    return nsimd::max(a,b);
 }
 
 // function min: a < b ? a : b
 static inline Vec16c min(Vec16c const & a, Vec16c const & b) {
-#if INSTRSET >= 5   // SSE4.1
-    return _mm_min_epi8(a,b);
-#else  // SSE2
-    __m128i signbit = _mm_set1_epi32(0x80808080);
-    __m128i a1      = _mm_xor_si128(a,signbit);            // add 0x80
-    __m128i b1      = _mm_xor_si128(b,signbit);            // add 0x80
-    __m128i m1      = _mm_min_epu8(a1,b1);                 // unsigned min
-    return  _mm_xor_si128(m1,signbit);                     // sub 0x80
-#endif
+    return nsimd::min(a,b);
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec16c abs(Vec16c const & a) {
-#if INSTRSET >= 4     // SSSE3 supported
-    return _mm_sign_epi8(a,a);
-#else                 // SSE2
-    __m128i nega = _mm_sub_epi8(_mm_setzero_si128(), a);
-    return _mm_min_epu8(a, nega);   // unsigned min (the negative value is bigger when compared as unsigned)
-#endif
+    return nsimd::abs(a);
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec16c abs_saturated(Vec16c const & a) {
-    __m128i absa   = abs(a);                               // abs(a)
-    __m128i overfl = _mm_cmpgt_epi8(_mm_setzero_si128(),absa);// 0 > a
-    return           _mm_add_epi8(absa,overfl);            // subtract 1 if 0x80
+    pack128_16i_t absa   = nsimd::abs(pack);
+    return nsimd::adds(absa, nsimd::set1<pack128_16i_t>(char(0)));
 }
 
 // function rotate_left: rotate each element left by b bits 
 // Use negative count to rotate right
-static inline Vec16c rotate_left(Vec16c const & a, int b) {
+static inline Vec16c rotate_left(Vec16c const & aa, int ba) {
 #ifdef __XOP__  // AMD XOP instruction set
-    return _mm_rot_epi8(a,_mm_set1_epi8(b));
+    return _mm_rot_epi8(aa.native_register(),_mm_set1_epi8(ba.native_register()));
 #else  // SSE2 instruction set
+    __m128i a         = aa.native_register();
+    __m128i b         = ba.native_register();
     __m128i bb        = _mm_cvtsi32_si128(b & 7);          // b modulo 8
     __m128i mbb       = _mm_cvtsi32_si128((8-b) & 7);      // 8-b modulo 8
     __m128i maskeven  = _mm_set1_epi32(0x00FF00FF);        // mask for even numbered bytes
@@ -883,36 +737,39 @@ static inline Vec16c rotate_left(Vec16c const & a, int b) {
 *****************************************************************************/
 
 class Vec16uc : public Vec16c {
+protected:
+    pack128_16ui_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec16uc() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec16uc(uint32_t i) {
-        xmm = _mm_set1_epi8((char)i);
+        xmm = nsimd::set1<pack128_16ui_t>((char)i);
     }
     // Constructor to build from all elements:
     Vec16uc(uint8_t i0, uint8_t i1, uint8_t i2, uint8_t i3, uint8_t i4, uint8_t i5, uint8_t i6, uint8_t i7,
         uint8_t i8, uint8_t i9, uint8_t i10, uint8_t i11, uint8_t i12, uint8_t i13, uint8_t i14, uint8_t i15) {
-        xmm = _mm_setr_epi8(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15);
+        char data[16] = {i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15};
+        xmm = nsimd::set1<pack128_16ui_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec16uc(__m128i const & x) {
+    Vec16uc(pack128_16ui_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec16uc & operator = (__m128i const & x) {
+    Vec16uc & operator = (pack128_16ui_t const & x) {
         xmm = x;
         return *this;
     }
     // Member function to load from array (unaligned)
     Vec16uc & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_16ui_t>((*char)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec16uc & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_16ui_t>((*char)p);
         return *this;
     }
     // Member function to change a single element in vector
@@ -936,28 +793,22 @@ public:
 
 // vector operator << : shift left all elements
 static inline Vec16uc operator << (Vec16uc const & a, uint32_t b) {
-    uint32_t mask = (uint32_t)0xFF >> (uint32_t)b;         // mask to remove bits that are shifted out
-    __m128i am    = _mm_and_si128(a,_mm_set1_epi8((char)mask));  // remove bits that will overflow
-    __m128i res   = _mm_sll_epi16(am,_mm_cvtsi32_si128(b));// 16-bit shifts
-    return res;
+    return nsimd::shl(a, b);
 }
 
 // vector operator << : shift left all elements
 static inline Vec16uc operator << (Vec16uc const & a, int32_t b) {
-    return a << (uint32_t)b;
+    return  nsimd::shl(a, (uint32_t)b);
 }
 
 // vector operator >> : shift right logical all elements
 static inline Vec16uc operator >> (Vec16uc const & a, uint32_t b) {
-    uint32_t mask = (uint32_t)0xFF << (uint32_t)b;         // mask to remove bits that are shifted out
-    __m128i am    = _mm_and_si128(a,_mm_set1_epi8((char)mask));  // remove bits that will overflow
-    __m128i res   = _mm_srl_epi16(am,_mm_cvtsi32_si128(b));// 16-bit shifts
-    return res;
+    return nsimd::shr(a, b);
 }
 
 // vector operator >> : shift right logical all elements
 static inline Vec16uc operator >> (Vec16uc const & a, int32_t b) {
-    return a >> (uint32_t)b;
+    return nsimd::shr(a, (uint32_t)b);
 }
 
 // vector operator >>= : shift right logical
@@ -968,50 +819,42 @@ static inline Vec16uc & operator >>= (Vec16uc & a, int b) {
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec16cb operator >= (Vec16uc const & a, Vec16uc const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec16cb)_mm_comge_epu8(a,b);
-#else  // SSE2 instruction set
-    return (Vec16cb)_mm_cmpeq_epi8(_mm_max_epu8(a,b),a); // a == max(a,b)
-#endif
+    return nsimd::ge(a,b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
 static inline Vec16cb operator <= (Vec16uc const & a, Vec16uc const & b) {
-    return b >= a;
+    return nsimd::le(a,b);
 }
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec16cb operator > (Vec16uc const & a, Vec16uc const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec16cb)_mm_comgt_epu8(a,b);
-#else  // SSE2 instruction set
-    return Vec16cb(Vec16c(~(b >= a)));
-#endif
+    return nsimd::gt(a,b);
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
 static inline Vec16cb operator < (Vec16uc const & a, Vec16uc const & b) {
-    return b > a;
+    return nsimd::lt(a,b);
 }
 
 // vector operator + : add
 static inline Vec16uc operator + (Vec16uc const & a, Vec16uc const & b) {
-    return Vec16uc (Vec16c(a) + Vec16c(b));
+    return nsimd::add(a,b);
 }
 
 // vector operator - : subtract
 static inline Vec16uc operator - (Vec16uc const & a, Vec16uc const & b) {
-    return Vec16uc (Vec16c(a) - Vec16c(b));
+    return nsimd::sub(a,b);
 }
 
 // vector operator * : multiply
 static inline Vec16uc operator * (Vec16uc const & a, Vec16uc const & b) {
-    return Vec16uc (Vec16c(a) * Vec16c(b));
+    return nsimd::mul(a,b);
 }
 
 // vector operator & : bitwise and
 static inline Vec16uc operator & (Vec16uc const & a, Vec16uc const & b) {
-    return Vec16uc(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a,b);
 }
 static inline Vec16uc operator && (Vec16uc const & a, Vec16uc const & b) {
     return a & b;
@@ -1019,7 +862,7 @@ static inline Vec16uc operator && (Vec16uc const & a, Vec16uc const & b) {
 
 // vector operator | : bitwise or
 static inline Vec16uc operator | (Vec16uc const & a, Vec16uc const & b) {
-    return Vec16uc(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a,b);
 }
 static inline Vec16uc operator || (Vec16uc const & a, Vec16uc const & b) {
     return a | b;
@@ -1027,12 +870,12 @@ static inline Vec16uc operator || (Vec16uc const & a, Vec16uc const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec16uc operator ^ (Vec16uc const & a, Vec16uc const & b) {
-    return Vec16uc(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a,b);
 }
 
 // vector operator ~ : bitwise not
 static inline Vec16uc operator ~ (Vec16uc const & a) {
-    return Vec16uc( ~ Vec128b(a));
+    return nsimd::notb(a);
 }
 
 // Functions for this class
@@ -1054,40 +897,33 @@ static inline Vec16uc if_add (Vec16cb const & f, Vec16uc const & a, Vec16uc cons
 // Overflow will wrap around
 // (Note: horizontal_add_x(Vec16uc) is slightly faster)
 static inline uint32_t horizontal_add (Vec16uc const & a) {
-    __m128i sum1 = _mm_sad_epu8(a,_mm_setzero_si128());
-    __m128i sum2 = _mm_shuffle_epi32(sum1,2);
-    __m128i sum3 = _mm_add_epi16(sum1,sum2);
-    uint16_t sum4 = (uint16_t)_mm_cvtsi128_si32(sum3);      // truncate to 16 bits
-    return  sum4;
+    return nsimd::addv(a);
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Each element is zero-extended before addition to avoid overflow
 static inline uint32_t horizontal_add_x (Vec16uc const & a) {
-    __m128i sum1 = _mm_sad_epu8(a,_mm_setzero_si128());
-    __m128i sum2 = _mm_shuffle_epi32(sum1,2);
-    __m128i sum3 = _mm_add_epi16(sum1,sum2);
-    return _mm_cvtsi128_si32(sum3);
+    return nsimd::addv(a);
 }
 
 // function add_saturated: add element by element, unsigned with saturation
 static inline Vec16uc add_saturated(Vec16uc const & a, Vec16uc const & b) {
-    return _mm_adds_epu8(a, b);
+    return nsimd::adds(a, b);
 }
 
 // function sub_saturated: subtract element by element, unsigned with saturation
 static inline Vec16uc sub_saturated(Vec16uc const & a, Vec16uc const & b) {
-    return _mm_subs_epu8(a, b);
+    return nsimd::subs(a, b);
 }
 
 // function max: a > b ? a : b
 static inline Vec16uc max(Vec16uc const & a, Vec16uc const & b) {
-    return _mm_max_epu8(a,b);
+    return nsimd::max(a,b);
 }
 
 // function min: a < b ? a : b
 static inline Vec16uc min(Vec16uc const & a, Vec16uc const & b) {
-    return _mm_min_epu8(a,b);
+    return nsimd::min(a,b);
 }
 
 
@@ -1099,136 +935,69 @@ static inline Vec16uc min(Vec16uc const & a, Vec16uc const & b) {
 *****************************************************************************/
 
 class Vec8s : public Vec128b {
+protected:
+    pack128_8i_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec8s() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec8s(int i) {
-        xmm = _mm_set1_epi16((int16_t)i);
+        xmm = nsimd::set1<pack128_8i_t>((int16_t)i);
     }
     // Constructor to build from all elements:
     Vec8s(int16_t i0, int16_t i1, int16_t i2, int16_t i3, int16_t i4, int16_t i5, int16_t i6, int16_t i7) {
-        xmm = _mm_setr_epi16(i0, i1, i2, i3, i4, i5, i6, i7);
+        int16_t data[8] = {i0, i1, i2, i3, i4, i5, i6, i7};
+        xmm = nsimd::set1<pack128_8i_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec8s(__m128i const & x) {
+    Vec8s(pack128_8i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec8s & operator = (__m128i const & x) {
+    Vec8s & operator = (pack128_8i_t const & x) {
         xmm = x;
         return *this;
     }
     // Type cast operator to convert to __m128i used in intrinsics
-    operator __m128i() const {
+    operator pack128_8i_t() const {
         return xmm;
     }
     // Member function to load from array (unaligned)
     Vec8s & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_8i_t>((short*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec8s & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_8i_t>((short*)p);
         return *this;
     }
     // Partial load. Load n elements and set the rest to 0
     Vec8s & load_partial(int n, void const * p) {
-        if      (n >= 8) load(p);
-        else if (n <= 0)  *this = 0;
-        else if (((int)(intptr_t)p & 0xFFF) < 0xFF0) {
-            // p is at least 16 bytes from a page boundary. OK to read 16 bytes
-            load(p);
-        }
-        else {
-            // worst case. read 1 byte at a time and suffer store forwarding penalty
-            int16_t x[8];
-            for (int i = 0; i < n; i++) x[i] = ((int16_t const *)p)[i];
-            load(x);
-        }
-        cutoff(n);
+        xmm = nsimd_common::load_partial<pack128_8i_t, packl128_8i_t, short>(p, n)
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, void * p) const {
-        if (n >= 8) {
-            store(p);
-            return;
-        }
-        if (n <= 0) return;
-        // we are not using _mm_maskmoveu_si128 because it is too slow on many processors
-        union {        
-            int8_t  c[16];
-            int16_t s[8];
-            int32_t i[4];
-            int64_t q[2];
-        } u;
-        store(u.c);
-        int j = 0;
-        if (n & 4) {
-            *(int64_t*)p = u.q[0];
-            j += 8;
-        }
-        if (n & 2) {
-            ((int32_t*)p)[j/4] = u.i[j/4];
-            j += 4;
-        }
-        if (n & 1) {
-            ((int16_t*)p)[j/2] = u.s[j/2];
-        }
+        nsimd_common::store_partial<pack128_8i_t, packl128_8i_t, short>(p, n, xmm);
     }
+
     // cut off vector to n elements. The last 8-n elements are set to zero
     Vec8s & cutoff(int n) {
-        *this = Vec16c(xmm).cutoff(n * 2);
+        xmm = nsimd_common::cutoff<pack128_8i_t, packl128_8i_t>(xmm, n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec8s const & insert(uint32_t index, int16_t value) {
-        switch(index) {
-        case 0:
-            xmm = _mm_insert_epi16(xmm,value,0);  break;
-        case 1:
-            xmm = _mm_insert_epi16(xmm,value,1);  break;
-        case 2:
-            xmm = _mm_insert_epi16(xmm,value,2);  break;
-        case 3:
-            xmm = _mm_insert_epi16(xmm,value,3);  break;
-        case 4:
-            xmm = _mm_insert_epi16(xmm,value,4);  break;
-        case 5:
-            xmm = _mm_insert_epi16(xmm,value,5);  break;
-        case 6:
-            xmm = _mm_insert_epi16(xmm,value,6);  break;
-        case 7:
-            xmm = _mm_insert_epi16(xmm,value,7);  break;
-        }
+        xmm = nsimd_common::set_bit<pack128_8i_t, short>(index, value, xmm)
         return *this;
     }
     // Member function extract a single element from vector
     // Note: This function is inefficient. Use store function if extracting more than one element
     int16_t extract(uint32_t index) const {
-        switch(index) {
-        case 0:
-            return (int16_t)_mm_extract_epi16(xmm,0);
-        case 1:
-            return (int16_t)_mm_extract_epi16(xmm,1);
-        case 2:
-            return (int16_t)_mm_extract_epi16(xmm,2);
-        case 3:
-            return (int16_t)_mm_extract_epi16(xmm,3);
-        case 4:
-            return (int16_t)_mm_extract_epi16(xmm,4);
-        case 5:
-            return (int16_t)_mm_extract_epi16(xmm,5);
-        case 6:
-            return (int16_t)_mm_extract_epi16(xmm,6);
-        case 7:
-            return (int16_t)_mm_extract_epi16(xmm,7);
-        }
-        return 0;
+        return nsimd_common::get_bit<pack128_8i_t, short>(index, xmm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
@@ -1247,25 +1016,29 @@ public:
 *****************************************************************************/
 
 class Vec8sb : public Vec8s {
+protected:
+    packl128_8i_t xmm; // Integer vector
 public:
     // Constructor to build from all elements:
     Vec8sb(bool x0, bool x1, bool x2, bool x3, bool x4, bool x5, bool x6, bool x7) {
-        xmm = Vec8s(-int16_t(x0), -int16_t(x1), -int16_t(x2), -int16_t(x3), -int16_t(x4), -int16_t(x5), -int16_t(x6), -int16_t(x7));
+        int16_t vec[8] = {-int16_t(x0), -int16_t(x1), -int16_t(x2), -int16_t(x3), -int16_t(x4), -int16_t(x5), -int16_t(x6), -int16_t(x7)};
+        xmm = nsimd::loadla<packl128_8i_t>(vec);
     }
     // Default constructor:
     Vec8sb() {
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec8sb(__m128i const & x) {
+    Vec8sb(packl128_8i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec8sb & operator = (__m128i const & x) {
+    Vec8sb & operator = (packl128_8i_t const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
     Vec8sb(bool b) : Vec8s(-int16_t(b)) {
+        xmm = nsimd::set1<packl128_8i_t>(-int16_t(b));
     }
     // Assignment operator to broadcast scalar value:
     Vec8sb & operator = (bool b) {
@@ -1277,18 +1050,23 @@ private: // Prevent constructing from int, etc.
     Vec8sb & operator = (int x);
 public:
     Vec8sb & insert (int index, bool a) {
-        Vec8s::insert(index, -(int)a);
+        xmm = nsimd_common::set_bit<packl128_8i_t, short>(index, -int16_t(value), xmm);
         return *this;
     }
     // Member function extract a single element from vector
     // Note: This function is inefficient. Use store function if extracting more than one element
     bool extract(uint32_t index) const {
-        return Vec8s::extract(index) != 0;
+        return nsimd_common::get_bit<packl128_8i_t, short>(index, xmm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
     bool operator [] (uint32_t index) const {
         return extract(index);
+    }
+
+    // Type cast operator to convert
+    operator packl128_8i_t() const {
+        return xmm;
     }
 };
 
@@ -1301,33 +1079,33 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec8sb operator & (Vec8sb const & a, Vec8sb const & b) {
-    return Vec8sb(Vec128b(a) & Vec128b(b));
+    return nsimd::andl(a,b);
 }
 static inline Vec8sb operator && (Vec8sb const & a, Vec8sb const & b) {
     return a & b;
 }
 // vector operator &= : bitwise and
 static inline Vec8sb & operator &= (Vec8sb & a, Vec8sb const & b) {
-    a = a & b;
+    a = nsimd::andb(a,b);
     return a;
 }
 
 // vector operator | : bitwise or
 static inline Vec8sb operator | (Vec8sb const & a, Vec8sb const & b) {
-    return Vec8sb(Vec128b(a) | Vec128b(b));
+    return nsimd::orl(a,b);
 }
 static inline Vec8sb operator || (Vec8sb const & a, Vec8sb const & b) {
     return a | b;
 }
 // vector operator |= : bitwise or
 static inline Vec8sb & operator |= (Vec8sb & a, Vec8sb const & b) {
-    a = a | b;
+    a = nsimd::orl(a,b);
     return a;
 }
 
 // vector operator ^ : bitwise xor
 static inline Vec8sb operator ^ (Vec8sb const & a, Vec8sb const & b) {
-    return Vec8sb(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorl(a,b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec8sb & operator ^= (Vec8sb & a, Vec8sb const & b) {
@@ -1337,7 +1115,7 @@ static inline Vec8sb & operator ^= (Vec8sb & a, Vec8sb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec8sb operator ~ (Vec8sb const & a) {
-    return Vec8sb( ~ Vec128b(a));
+    return nsimd::notl(a);
 }
 
 // vector operator ! : element not
@@ -1347,23 +1125,19 @@ static inline Vec8sb operator ! (Vec8sb const & a) {
 
 // vector function andnot
 static inline Vec8sb andnot (Vec8sb const & a, Vec8sb const & b) {
-    return Vec8sb(andnot(Vec128b(a), Vec128b(b)));
+    return nsimd::andnotl(a,b);
 }
 
 // Horizontal Boolean functions for Vec8sb
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec8sb const & a) {
-    return _mm_movemask_epi8(a) == 0xFFFF;
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec8sb const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported. Use PTEST
-    return !_mm_testz_si128(a, a);
-#else
-    return _mm_movemask_epi8(a) != 0;
-#endif
+    return nsimd::any(a);
 }
 
 
@@ -1375,12 +1149,12 @@ static inline bool horizontal_or(Vec8sb const & a) {
 
 // vector operator + : add element by element
 static inline Vec8s operator + (Vec8s const & a, Vec8s const & b) {
-    return _mm_add_epi16(a, b);
+    return nsimd::add(a,b);
 }
 
 // vector operator += : add
 static inline Vec8s & operator += (Vec8s & a, Vec8s const & b) {
-    a = a + b;
+    a = nsimd::add(a,b);
     return a;
 }
 
@@ -1399,12 +1173,12 @@ static inline Vec8s & operator ++ (Vec8s & a) {
 
 // vector operator - : subtract element by element
 static inline Vec8s operator - (Vec8s const & a, Vec8s const & b) {
-    return _mm_sub_epi16(a, b);
+    return nsimd::sub(a, b);
 }
 
 // vector operator - : unary minus
 static inline Vec8s operator - (Vec8s const & a) {
-    return _mm_sub_epi16(_mm_setzero_si128(), a);
+    return nsimd::sub(nsimd::set1<pack128_8i_t>(short(0)), a);
 }
 
 // vector operator -= : subtract
@@ -1428,7 +1202,7 @@ static inline Vec8s & operator -- (Vec8s & a) {
 
 // vector operator * : multiply element by element
 static inline Vec8s operator * (Vec8s const & a, Vec8s const & b) {
-    return _mm_mullo_epi16(a, b);
+    return nsimd::mul(a, b);
 }
 
 // vector operator *= : multiply
@@ -1443,67 +1217,59 @@ static inline Vec8s & operator *= (Vec8s & a, Vec8s const & b) {
 
 // vector operator << : shift left
 static inline Vec8s operator << (Vec8s const & a, int b) {
-    return _mm_sll_epi16(a,_mm_cvtsi32_si128(b));
+    return nsimd::shl(a,b);
 }
 
 // vector operator <<= : shift left
 static inline Vec8s & operator <<= (Vec8s & a, int b) {
-    a = a << b;
+    a = nsimd::shl(a,b);
     return a;
 }
 
 // vector operator >> : shift right arithmetic
 static inline Vec8s operator >> (Vec8s const & a, int b) {
-    return _mm_sra_epi16(a,_mm_cvtsi32_si128(b));
+    return nsimd::shr(a,b);
 }
 
 // vector operator >>= : shift right arithmetic
 static inline Vec8s & operator >>= (Vec8s & a, int b) {
-    a = a >> b;
+    a = nsimd::shr(a,b);
     return a;
 }
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec8sb operator == (Vec8s const & a, Vec8s const & b) {
-    return _mm_cmpeq_epi16(a, b);
+    return nsimd::eq(a,b);
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec8sb operator != (Vec8s const & a, Vec8s const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec8sb)_mm_comneq_epi16(a,b);
-#else  // SSE2 instruction set
-    return Vec8sb (~(a == b));
-#endif
+    return nsimd::ne(a,b);
 }
 
 // vector operator > : returns true for elements for which a > b
 static inline Vec8sb operator > (Vec8s const & a, Vec8s const & b) {
-    return _mm_cmpgt_epi16(a, b);
+    return nsimd::gt(a, b);
 }
 
 // vector operator < : returns true for elements for which a < b
 static inline Vec8sb operator < (Vec8s const & a, Vec8s const & b) {
-    return b > a;
+    return nsimd::lt(a,b);
 }
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec8sb operator >= (Vec8s const & a, Vec8s const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec8sb)_mm_comge_epi16(a,b);
-#else  // SSE2 instruction set
-    return Vec8sb (~(b > a));
-#endif
+    return nsimd::ge(a,b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
 static inline Vec8sb operator <= (Vec8s const & a, Vec8s const & b) {
-    return b >= a;
+    return nsimd::le(a,b);
 }
 
 // vector operator & : bitwise and
 static inline Vec8s operator & (Vec8s const & a, Vec8s const & b) {
-    return Vec8s(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a,b);
 }
 static inline Vec8s operator && (Vec8s const & a, Vec8s const & b) {
     return a & b;
@@ -1516,7 +1282,7 @@ static inline Vec8s & operator &= (Vec8s & a, Vec8s const & b) {
 
 // vector operator | : bitwise or
 static inline Vec8s operator | (Vec8s const & a, Vec8s const & b) {
-    return Vec8s(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a,b);
 }
 static inline Vec8s operator || (Vec8s const & a, Vec8s const & b) {
     return a | b;
@@ -1529,7 +1295,7 @@ static inline Vec8s & operator |= (Vec8s & a, Vec8s const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec8s operator ^ (Vec8s const & a, Vec8s const & b) {
-    return Vec8s(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a,b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec8s & operator ^= (Vec8s & a, Vec8s const & b) {
@@ -1544,7 +1310,7 @@ static inline Vec8s operator ~ (Vec8s const & a) {
 
 // vector operator ! : logical not, returns true for elements == 0
 static inline Vec8s operator ! (Vec8s const & a) {
-    return _mm_cmpeq_epi16(a,_mm_setzero_si128());
+    return nsimd::notb(a);
 }
 
 // Functions for this class
@@ -1565,94 +1331,43 @@ static inline Vec8s if_add (Vec8sb const & f, Vec8s const & a, Vec8s const & b) 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int32_t horizontal_add (Vec8s const & a) {
-#ifdef __XOP__       // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epi16(a);
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // high element
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);              // sum
-    int16_t sum4  = _mm_cvtsi128_si32(sum3);               // truncate to 16 bits
-    return  sum4;                                          // sign extend to 32 bits
-#elif  INSTRSET >= 4  // SSSE3
-    __m128i sum1  = _mm_hadd_epi16(a,a);                   // horizontally add 8 elements in 3 steps
-    __m128i sum2  = _mm_hadd_epi16(sum1,sum1);
-    __m128i sum3  = _mm_hadd_epi16(sum2,sum2);
-    int16_t sum4  = (int16_t)_mm_cvtsi128_si32(sum3);      // 16 bit sum
-    return  sum4;                                          // sign extend to 32 bits
-#else                 // SSE2
-    __m128i sum1  = _mm_shuffle_epi32(a,0x0E);             // 4 high elements
-    __m128i sum2  = _mm_add_epi16(a,sum1);                 // 4 sums
-    __m128i sum3  = _mm_shuffle_epi32(sum2,0x01);          // 2 high elements
-    __m128i sum4  = _mm_add_epi16(sum2,sum3);              // 2 sums
-    __m128i sum5  = _mm_shufflelo_epi16(sum4,0x01);        // 1 high element
-    __m128i sum6  = _mm_add_epi16(sum4,sum5);              // 1 sum
-    int16_t sum7  = _mm_cvtsi128_si32(sum6);               // 16 bit sum
-    return  sum7;                                          // sign extend to 32 bits
-#endif
+    return nsimd::addv(a);
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Elements are sign extended before adding to avoid overflow
 static inline int32_t horizontal_add_x (Vec8s const & a) {
-#ifdef __XOP__       // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epi16(a);
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // high element
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);              // sum
-    return          _mm_cvtsi128_si32(sum3);
-#elif  INSTRSET >= 4  // SSSE3
-    __m128i aeven = _mm_slli_epi32(a,16);                  // even numbered elements of a. get sign bit in position
-            aeven = _mm_srai_epi32(aeven,16);              // sign extend even numbered elements
-    __m128i aodd  = _mm_srai_epi32(a,16);                  // sign extend odd  numbered elements
-    __m128i sum1  = _mm_add_epi32(aeven,aodd);             // add even and odd elements
-    __m128i sum2  = _mm_hadd_epi32(sum1,sum1);             // horizontally add 4 elements in 2 steps
-    __m128i sum3  = _mm_hadd_epi32(sum2,sum2);
-    return  _mm_cvtsi128_si32(sum3);
-#else                 // SSE2
-    __m128i aeven = _mm_slli_epi32(a,16);                  // even numbered elements of a. get sign bit in position
-            aeven = _mm_srai_epi32(aeven,16);              // sign extend even numbered elements
-    __m128i aodd  = _mm_srai_epi32(a,16);                  // sign extend odd  numbered elements
-    __m128i sum1  = _mm_add_epi32(aeven,aodd);             // add even and odd elements
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // 2 high elements
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);
-    __m128i sum4  = _mm_shuffle_epi32(sum3,0x01);          // 1 high elements
-    __m128i sum5  = _mm_add_epi32(sum3,sum4);
-    return  _mm_cvtsi128_si32(sum5);                       // 32 bit sum
-#endif
+    return nsimd::addv(a);
 }
 
 // function add_saturated: add element by element, signed with saturation
 static inline Vec8s add_saturated(Vec8s const & a, Vec8s const & b) {
-    return _mm_adds_epi16(a, b);
+    return nsimd::adds(a, b);
 }
 
 // function sub_saturated: subtract element by element, signed with saturation
 static inline Vec8s sub_saturated(Vec8s const & a, Vec8s const & b) {
-    return _mm_subs_epi16(a, b);
+    return nsimd::subs(a, b);
 }
 
 // function max: a > b ? a : b
 static inline Vec8s max(Vec8s const & a, Vec8s const & b) {
-    return _mm_max_epi16(a,b);
+    return nsimd::max(a,b);
 }
 
 // function min: a < b ? a : b
 static inline Vec8s min(Vec8s const & a, Vec8s const & b) {
-    return _mm_min_epi16(a,b);
+    return nsimd::min(a,b);
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec8s abs(Vec8s const & a) {
-#if INSTRSET >= 4     // SSSE3 supported
-    return _mm_sign_epi16(a,a);
-#else                 // SSE2
-    __m128i nega = _mm_sub_epi16(_mm_setzero_si128(), a);
-    return _mm_max_epi16(a, nega);
-#endif
+    return nsimd::abs(a);
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec8s abs_saturated(Vec8s const & a) {
-    __m128i absa   = abs(a);                               // abs(a)
-    __m128i overfl = _mm_srai_epi16(absa,15);              // sign
-    return           _mm_add_epi16(absa,overfl);           // subtract 1 if 0x8000
+    return nsimd::adds(nsimd::abs(a), nsimd::set1<pack128_8i_t>(short(0)));
 }
 
 // function rotate_left all elements
@@ -1676,51 +1391,59 @@ static inline Vec8s rotate_left(Vec8s const & a, int b) {
 *****************************************************************************/
 
 class Vec8us : public Vec8s {
+protected:
+    pack128_8ui_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec8us() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec8us(uint32_t i) {
-        xmm = _mm_set1_epi16((int16_t)i);
+        xmm = nsimd::set1<pack128_8ui_t>((uint16_t)i);
     }
     // Constructor to build from all elements:
     Vec8us(uint16_t i0, uint16_t i1, uint16_t i2, uint16_t i3, uint16_t i4, uint16_t i5, uint16_t i6, uint16_t i7) {
-        xmm = _mm_setr_epi16(i0, i1, i2, i3, i4, i5, i6, i7);
+        uint16_t[8] data = {i0, i1, i2, i3, i4, i5, i6, i7}
+        xmm = nsimd::loadu<pack128_8ui_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec8us(__m128i const & x) {
+    Vec8us(pack128_8ui_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec8us & operator = (__m128i const & x) {
+    Vec8us & operator = (pack128_8ui_t const & x) {
         xmm = x;
         return *this;
     }
     // Member function to load from array (unaligned)
     Vec8us & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_8ui_t>((uint16_t const*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec8us & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_8ui_t>((uint16_t const*)p);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec8us const & insert(uint32_t index, uint16_t value) {
-        Vec8s::insert(index, value);
+        xmm = nsimd_common::set_bit<pack128_8ui_t, short>(index, value, xmm)
         return *this;
     }
     // Member function extract a single element from vector
     uint16_t extract(uint32_t index) const {
-        return Vec8s::extract(index);
+        return nsimd_common::get_bit<pack128_8ui_t, short>(index, xmm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
     uint16_t operator [] (uint32_t index) const {
         return extract(index);
+    }
+
+    // Type cast operator to convert
+    operator packl128_8i_t() const {
+        return xmm;
     }
 };
 
@@ -1728,17 +1451,17 @@ public:
 
 // vector operator + : add
 static inline Vec8us operator + (Vec8us const & a, Vec8us const & b) {
-    return Vec8us (Vec8s(a) + Vec8s(b));
+    return nsimd::add(a,b);
 }
 
 // vector operator - : subtract
 static inline Vec8us operator - (Vec8us const & a, Vec8us const & b) {
-    return Vec8us (Vec8s(a) - Vec8s(b));
+    return nsimd::sub(a,b);
 }
 
 // vector operator * : multiply
 static inline Vec8us operator * (Vec8us const & a, Vec8us const & b) {
-    return Vec8us (Vec8s(a) * Vec8s(b));
+    return nsimd::mul(a,b);
 }
 
 // vector operator / : divide
@@ -1746,7 +1469,7 @@ static inline Vec8us operator * (Vec8us const & a, Vec8us const & b) {
 
 // vector operator >> : shift right logical all elements
 static inline Vec8us operator >> (Vec8us const & a, uint32_t b) {
-    return _mm_srl_epi16(a,_mm_cvtsi32_si128(b)); 
+    return nsimd::shl(a, b);
 }
 
 // vector operator >> : shift right logical all elements
@@ -1762,7 +1485,7 @@ static inline Vec8us & operator >>= (Vec8us & a, int b) {
 
 // vector operator << : shift left all elements
 static inline Vec8us operator << (Vec8us const & a, uint32_t b) {
-    return _mm_sll_epi16(a,_mm_cvtsi32_si128(b)); 
+    return nsimd::shr(a, b); 
 }
 
 // vector operator << : shift left all elements
@@ -1772,15 +1495,7 @@ static inline Vec8us operator << (Vec8us const & a, int32_t b) {
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec8sb operator >= (Vec8us const & a, Vec8us const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return _mm_comge_epu16(a,b);
-#elif INSTRSET >= 5   // SSE4.1
-    __m128i max_ab = _mm_max_epu16(a,b);                   // max(a,b), unsigned
-    return _mm_cmpeq_epi16(a,max_ab);                      // a == max(a,b)
-#else  // SSE2 instruction set
-    __m128i s = _mm_subs_epu16(b,a);                       // b-a, saturated
-    return  _mm_cmpeq_epi16(s, _mm_setzero_si128());       // s == 0 
-#endif
+    return nsimd::ge(a,b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
@@ -1790,11 +1505,7 @@ static inline Vec8sb operator <= (Vec8us const & a, Vec8us const & b) {
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec8sb operator > (Vec8us const & a, Vec8us const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec8s)_mm_comgt_epu16(a,b);
-#else  // SSE2 instruction set
-    return Vec8sb (~(b >= a));
-#endif
+    return nsimd::gt(a,b);
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
@@ -1804,7 +1515,7 @@ static inline Vec8sb operator < (Vec8us const & a, Vec8us const & b) {
 
 // vector operator & : bitwise and
 static inline Vec8us operator & (Vec8us const & a, Vec8us const & b) {
-    return Vec8us(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a, b);
 }
 static inline Vec8us operator && (Vec8us const & a, Vec8us const & b) {
     return a & b;
@@ -1812,7 +1523,7 @@ static inline Vec8us operator && (Vec8us const & a, Vec8us const & b) {
 
 // vector operator | : bitwise or
 static inline Vec8us operator | (Vec8us const & a, Vec8us const & b) {
-    return Vec8us(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a,b);
 }
 static inline Vec8us operator || (Vec8us const & a, Vec8us const & b) {
     return a | b;
@@ -1820,12 +1531,12 @@ static inline Vec8us operator || (Vec8us const & a, Vec8us const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec8us operator ^ (Vec8us const & a, Vec8us const & b) {
-    return Vec8us(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a,b);
 }
 
 // vector operator ~ : bitwise not
 static inline Vec8us operator ~ (Vec8us const & a) {
-    return Vec8us( ~ Vec128b(a));
+    return nsimd::notb(a);
 }
 
 // Functions for this class
@@ -1846,93 +1557,33 @@ static inline Vec8us if_add (Vec8sb const & f, Vec8us const & a, Vec8us const & 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline uint32_t horizontal_add (Vec8us const & a) {
-#ifdef __XOP__     // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epu16(a);
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // high element
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);              // sum
-    uint16_t sum4 = _mm_cvtsi128_si32(sum3);               // truncate to 16 bits
-    return  sum4;                                          // zero extend to 32 bits
-#elif  INSTRSET >= 4  // SSSE3
-    __m128i sum1  = _mm_hadd_epi16(a,a);                   // horizontally add 8 elements in 3 steps
-    __m128i sum2  = _mm_hadd_epi16(sum1,sum1);
-    __m128i sum3  = _mm_hadd_epi16(sum2,sum2);
-    uint16_t sum4 = (uint16_t)_mm_cvtsi128_si32(sum3);     // 16 bit sum
-    return  sum4;                                          // zero extend to 32 bits
-#else                 // SSE2
-    __m128i sum1  = _mm_shuffle_epi32(a,0x0E);             // 4 high elements
-    __m128i sum2  = _mm_add_epi16(a,sum1);                 // 4 sums
-    __m128i sum3  = _mm_shuffle_epi32(sum2,0x01);          // 2 high elements
-    __m128i sum4  = _mm_add_epi16(sum2,sum3);              // 2 sums
-    __m128i sum5  = _mm_shufflelo_epi16(sum4,0x01);        // 1 high element
-    __m128i sum6  = _mm_add_epi16(sum4,sum5);              // 1 sum
-    uint16_t sum7 = _mm_cvtsi128_si32(sum6);               // 16 bit sum
-    return  sum7;                                          // zero extend to 32 bits
-#endif
+    return nsimd::addv(a);
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Each element is zero-extended before addition to avoid overflow
 static inline uint32_t horizontal_add_x (Vec8us const & a) {
-#ifdef __XOP__     // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epu16(a);
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // high element
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);              // sum
-    return          _mm_cvtsi128_si32(sum3);
-#elif INSTRSET >= 4  // SSSE3
-    __m128i mask  = _mm_set1_epi32(0x0000FFFF);            // mask for even positions
-    __m128i aeven = _mm_and_si128(a,mask);                 // even numbered elements of a
-    __m128i aodd  = _mm_srli_epi32(a,16);                  // zero extend odd numbered elements
-    __m128i sum1  = _mm_add_epi32(aeven,aodd);             // add even and odd elements
-    __m128i sum2  = _mm_hadd_epi32(sum1,sum1);             // horizontally add 4 elements in 2 steps
-    __m128i sum3  = _mm_hadd_epi32(sum2,sum2);
-    return  _mm_cvtsi128_si32(sum3);
-#else                 // SSE2
-    __m128i mask  = _mm_set1_epi32(0x0000FFFF);            // mask for even positions
-    __m128i aeven = _mm_and_si128(a,mask);                 // even numbered elements of a
-    __m128i aodd  = _mm_srli_epi32(a,16);                  // zero extend odd numbered elements
-    __m128i sum1  = _mm_add_epi32(aeven,aodd);             // add even and odd elements
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // 2 high elements
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);
-    __m128i sum4  = _mm_shuffle_epi32(sum3,0x01);          // 1 high elements
-    __m128i sum5  = _mm_add_epi32(sum3,sum4);
-    return  _mm_cvtsi128_si32(sum5);               // 16 bit sum
-#endif
+    return nsimd::addv(a);
 }
 
 // function add_saturated: add element by element, unsigned with saturation
 static inline Vec8us add_saturated(Vec8us const & a, Vec8us const & b) {
-    return _mm_adds_epu16(a, b);
+    return nsimd::adds(a, b);
 }
 
 // function sub_saturated: subtract element by element, unsigned with saturation
 static inline Vec8us sub_saturated(Vec8us const & a, Vec8us const & b) {
-    return _mm_subs_epu16(a, b);
+    return nsimd::subs(a, b);
 }
 
 // function max: a > b ? a : b
 static inline Vec8us max(Vec8us const & a, Vec8us const & b) {
-#if INSTRSET >= 5   // SSE4.1
-    return _mm_max_epu16(a,b);
-#else  // SSE2
-    __m128i signbit = _mm_set1_epi32(0x80008000);
-    __m128i a1      = _mm_xor_si128(a,signbit);            // add 0x8000
-    __m128i b1      = _mm_xor_si128(b,signbit);            // add 0x8000
-    __m128i m1      = _mm_max_epi16(a1,b1);                // signed max
-    return  _mm_xor_si128(m1,signbit);                     // sub 0x8000
-#endif
+    return nsimd::max(a, b);
 }
 
 // function min: a < b ? a : b
 static inline Vec8us min(Vec8us const & a, Vec8us const & b) {
-#if INSTRSET >= 5   // SSE4.1
-    return _mm_min_epu16(a,b);
-#else  // SSE2
-    __m128i signbit = _mm_set1_epi32(0x80008000);
-    __m128i a1      = _mm_xor_si128(a,signbit);            // add 0x8000
-    __m128i b1      = _mm_xor_si128(b,signbit);            // add 0x8000
-    __m128i m1      = _mm_min_epi16(a1,b1);                // signed min
-    return  _mm_xor_si128(m1,signbit);                     // sub 0x8000
-#endif
+    return nsimd::min(a, b);
 }
 
 
@@ -1944,95 +1595,63 @@ static inline Vec8us min(Vec8us const & a, Vec8us const & b) {
 *****************************************************************************/
 
 class Vec4i : public Vec128b {
+protected:
+    pack128_4i_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec4i() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec4i(int i) {
-        xmm = _mm_set1_epi32(i);
+        xmm = nsimd::set1<pack128_4i_t>(i);
     }
     // Constructor to build from all elements:
     Vec4i(int32_t i0, int32_t i1, int32_t i2, int32_t i3) {
-        xmm = _mm_setr_epi32(i0, i1, i2, i3);
+        int32_t data[4] = {i0, i1, i2, i3}
+        xmm = nsimd::loadu<pack128_4i_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec4i(__m128i const & x) {
+    Vec4i(pack128_4i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec4i & operator = (__m128i const & x) {
+    Vec4i & operator = (pack128_4i_t const & x) {
         xmm = x;
         return *this;
     }
     // Type cast operator to convert to __m128i used in intrinsics
-    operator __m128i() const {
+    operator pack128_4i_t() const {
         return xmm;
     }
     // Member function to load from array (unaligned)
     Vec4i & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_4i_t>((int32_t const *)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec4i & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_4i_t>((int32_t const *)p);
         return *this;
     }
+
     // Partial load. Load n elements and set the rest to 0
     Vec4i & load_partial(int n, void const * p) {
-        switch (n) {
-        case 0:
-            *this = 0;  break;
-        case 1:
-            xmm = _mm_cvtsi32_si128(*(int32_t const*)p);  break;
-        case 2:
-            // intrinsic for movq is missing!
-            xmm = _mm_setr_epi32(((int32_t const*)p)[0], ((int32_t const*)p)[1], 0, 0);  break;
-        case 3:
-            xmm = _mm_setr_epi32(((int32_t const*)p)[0], ((int32_t const*)p)[1], ((int32_t const*)p)[2], 0);  break;
-        case 4:
-            load(p);  break;
-        default: 
-            break;
-        }
+        xmm = nsimd_common::load_partial<pack128_4i_t, packl128_4i_t, int>(p, n)
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, void * p) const {
-        union {        
-            int32_t i[4];
-            int64_t q[2];
-        } u;
-        switch (n) {
-        case 1:
-            *(int32_t*)p = _mm_cvtsi128_si32(xmm);  break;
-        case 2:
-            // intrinsic for movq is missing!
-            store(u.i);
-            *(int64_t*)p = u.q[0];  break;
-        case 3:
-            store(u.i);
-            *(int64_t*)p     = u.q[0];  
-            ((int32_t*)p)[2] = u.i[2];  break;
-        case 4:
-            store(p);  break;
-        default:
-            break;
-        }
+        nsimd_common::store_partial<pack128_4i_t, packl128_4i_t, int>(p, n, xmm);
     }
     // cut off vector to n elements. The last 4-n elements are set to zero
     Vec4i & cutoff(int n) {
-        *this = Vec16c(xmm).cutoff(n * 4);
+        xmm = nsimd_common::cutoff<pack128_4i_t, packl128_4i_t>(xmm, n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4i const & insert(uint32_t index, int32_t value) {
-        static const int32_t maskl[8] = {0,0,0,0,-1,0,0,0};
-        __m128i broad = _mm_set1_epi32(value);  // broadcast value into all elements
-        __m128i mask  = _mm_loadu_si128((__m128i const*)(maskl+4-(index & 3))); // mask with FFFFFFFF at index position
-        xmm = selectb(mask,broad,xmm);
+        xmm = nsimd_common::set_bit<pack128_4i_t, int>(index, value, xmm)
         return *this;
     }
     // Member function extract a single element from vector
@@ -2058,25 +1677,29 @@ public:
 *
 *****************************************************************************/
 class Vec4ib : public Vec4i {
+protected:
+    packl128_4i_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec4ib() {
     }
     // Constructor to build from all elements:
     Vec4ib(bool x0, bool x1, bool x2, bool x3) {
-        xmm = Vec4i(-int32_t(x0), -int32_t(x1), -int32_t(x2), -int32_t(x3));
+        int32_t vec[4] = {-int32_t(x0), -int32_t(x1), -int32_t(x2), -int32_t(x3)};
+        xmm = nsimd::loadla<packl128_8i_t>(vec);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec4ib(__m128i const & x) {
+    Vec4ib(packl128_8i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec4ib & operator = (__m128i const & x) {
+    Vec4ib & operator = (packl128_8i_t const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
-    Vec4ib(bool b) : Vec4i(-int32_t(b)) {
+    Vec4ib(bool b) {
+        xmm = nsimd::set1<packl128_4i_t>(-int32_t(b));
     }
     // Assignment operator to broadcast scalar value:
     Vec4ib & operator = (bool b) {
@@ -2088,17 +1711,22 @@ private: // Prevent constructing from int, etc.
     Vec4ib & operator = (int x);
 public:
     Vec4ib & insert (int index, bool a) {
-        Vec4i::insert(index, -(int)a);
+        xmm = nsimd_common::set_bit<packl128_4i_t, int>(index, -int32_t(value), xmm);
         return *this;
     }    
     // Member function extract a single element from vector
     bool extract(uint32_t index) const {
-        return Vec4i::extract(index) != 0;
+        return nsimd_common::get_bit<packl128_8i_t, short>(index, xmm) != 0;
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
     bool operator [] (uint32_t index) const {
         return extract(index);
+    }
+
+    // Type cast operator to convert
+    operator packl128_4i_t() const {
+        return xmm;
     }
 };
 
@@ -2111,7 +1739,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec4ib operator & (Vec4ib const & a, Vec4ib const & b) {
-    return Vec4ib(Vec128b(a) & Vec128b(b));
+    return nsimd::andl(a, b);
 }
 static inline Vec4ib operator && (Vec4ib const & a, Vec4ib const & b) {
     return a & b;
@@ -2124,7 +1752,7 @@ static inline Vec4ib & operator &= (Vec4ib & a, Vec4ib const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4ib operator | (Vec4ib const & a, Vec4ib const & b) {
-    return Vec4ib(Vec128b(a) | Vec128b(b));
+    return nsimd::orl(a,b);
 }
 static inline Vec4ib operator || (Vec4ib const & a, Vec4ib const & b) {
     return a | b;
@@ -2137,7 +1765,7 @@ static inline Vec4ib & operator |= (Vec4ib & a, Vec4ib const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4ib operator ^ (Vec4ib const & a, Vec4ib const & b) {
-    return Vec4ib(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorl(a,b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec4ib & operator ^= (Vec4ib & a, Vec4ib const & b) {
@@ -2147,7 +1775,7 @@ static inline Vec4ib & operator ^= (Vec4ib & a, Vec4ib const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4ib operator ~ (Vec4ib const & a) {
-    return Vec4ib( ~ Vec128b(a));
+    return nsimd::notl(a);
 }
 
 // vector operator ! : element not
@@ -2157,23 +1785,19 @@ static inline Vec4ib operator ! (Vec4ib const & a) {
 
 // vector function andnot
 static inline Vec4ib andnot (Vec4ib const & a, Vec4ib const & b) {
-    return Vec4ib(andnot(Vec128b(a), Vec128b(b)));
+    return nsimd::andnotl(a,b);
 }
 
 // Horizontal Boolean functions for Vec4ib
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec4ib const & a) {
-    return _mm_movemask_epi8(a) == 0xFFFF;
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec4ib const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported. Use PTEST
-    return !_mm_testz_si128(a, a);
-#else
-    return _mm_movemask_epi8(a) != 0;
-#endif
+    return nsimd::any(a);
 }
 
 
@@ -2185,7 +1809,7 @@ static inline bool horizontal_or(Vec4ib const & a) {
 
 // vector operator + : add element by element
 static inline Vec4i operator + (Vec4i const & a, Vec4i const & b) {
-    return _mm_add_epi32(a, b);
+    return nsimd::add0(a, b);
 }
 
 // vector operator += : add
@@ -2209,12 +1833,12 @@ static inline Vec4i & operator ++ (Vec4i & a) {
 
 // vector operator - : subtract element by element
 static inline Vec4i operator - (Vec4i const & a, Vec4i const & b) {
-    return _mm_sub_epi32(a, b);
+    return nsimd::sub(a, b);
 }
 
 // vector operator - : unary minus
 static inline Vec4i operator - (Vec4i const & a) {
-    return _mm_sub_epi32(_mm_setzero_si128(), a);
+    return nsimd::sub(nsimd::set1<pack128_4i_t>(0), a);
 }
 
 // vector operator -= : subtract
@@ -2238,17 +1862,7 @@ static inline Vec4i & operator -- (Vec4i & a) {
 
 // vector operator * : multiply element by element
 static inline Vec4i operator * (Vec4i const & a, Vec4i const & b) {
-#if INSTRSET >= 5  // SSE4.1 instruction set
-    return _mm_mullo_epi32(a, b);
-#else
-   __m128i a13    = _mm_shuffle_epi32(a, 0xF5);          // (-,a3,-,a1)
-   __m128i b13    = _mm_shuffle_epi32(b, 0xF5);          // (-,b3,-,b1)
-   __m128i prod02 = _mm_mul_epu32(a, b);                 // (-,a2*b2,-,a0*b0)
-   __m128i prod13 = _mm_mul_epu32(a13, b13);             // (-,a3*b3,-,a1*b1)
-   __m128i prod01 = _mm_unpacklo_epi32(prod02,prod13);   // (-,-,a1*b1,a0*b0) 
-   __m128i prod23 = _mm_unpackhi_epi32(prod02,prod13);   // (-,-,a3*b3,a2*b2) 
-   return           _mm_unpacklo_epi64(prod01,prod23);   // (ab3,ab2,ab1,ab0)
-#endif
+    return nsimd::mul(a, b);
 }
 
 // vector operator *= : multiply
@@ -2263,7 +1877,7 @@ static inline Vec4i & operator *= (Vec4i & a, Vec4i const & b) {
 
 // vector operator << : shift left
 static inline Vec4i operator << (Vec4i const & a, int32_t b) {
-    return _mm_sll_epi32(a,_mm_cvtsi32_si128(b));
+    return nsimd::shl(a, b);
 }
 
 // vector operator <<= : shift left
@@ -2274,7 +1888,7 @@ static inline Vec4i & operator <<= (Vec4i & a, int32_t b) {
 
 // vector operator >> : shift right arithmetic
 static inline Vec4i operator >> (Vec4i const & a, int32_t b) {
-    return _mm_sra_epi32(a,_mm_cvtsi32_si128(b));
+    return nsimd::shr(a, b);
 }
 
 // vector operator >>= : shift right arithmetic
@@ -2285,21 +1899,17 @@ static inline Vec4i & operator >>= (Vec4i & a, int32_t b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec4ib operator == (Vec4i const & a, Vec4i const & b) {
-    return _mm_cmpeq_epi32(a, b);
+    return nsimd::eq(a, b);
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec4ib operator != (Vec4i const & a, Vec4i const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec4ib)_mm_comneq_epi32(a,b);
-#else  // SSE2 instruction set
-    return Vec4ib(Vec4i (~(a == b)));
-#endif
+    return nsimd::ne(a, b);
 }
   
 // vector operator > : returns true for elements for which a > b
 static inline Vec4ib operator > (Vec4i const & a, Vec4i const & b) {
-    return _mm_cmpgt_epi32(a, b);
+    return nsimd::gt(a, b);
 }
 
 // vector operator < : returns true for elements for which a < b
@@ -2309,11 +1919,7 @@ static inline Vec4ib operator < (Vec4i const & a, Vec4i const & b) {
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec4ib operator >= (Vec4i const & a, Vec4i const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec4ib)_mm_comge_epi32(a,b);
-#else  // SSE2 instruction set
-    return Vec4ib(Vec4i (~(b > a)));
-#endif
+    return nsimd::ge(a, b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
@@ -2323,7 +1929,7 @@ static inline Vec4ib operator <= (Vec4i const & a, Vec4i const & b) {
 
 // vector operator & : bitwise and
 static inline Vec4i operator & (Vec4i const & a, Vec4i const & b) {
-    return Vec4i(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a, b);
 }
 static inline Vec4i operator && (Vec4i const & a, Vec4i const & b) {
     return a & b;
@@ -2336,7 +1942,7 @@ static inline Vec4i & operator &= (Vec4i & a, Vec4i const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4i operator | (Vec4i const & a, Vec4i const & b) {
-    return Vec4i(Vec128b(a) | Vec128b(b));
+    return nsimd::orb;
 }
 static inline Vec4i operator || (Vec4i const & a, Vec4i const & b) {
     return a | b;
@@ -2349,7 +1955,7 @@ static inline Vec4i & operator |= (Vec4i & a, Vec4i const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4i operator ^ (Vec4i const & a, Vec4i const & b) {
-    return Vec4i(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a, b);
 }
 // vector operator ^= : bitwise and
 static inline Vec4i & operator ^= (Vec4i & a, Vec4i const & b) {
@@ -2359,12 +1965,12 @@ static inline Vec4i & operator ^= (Vec4i & a, Vec4i const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4i operator ~ (Vec4i const & a) {
-    return Vec4i( ~ Vec128b(a));
+    return nsimd::notb(a);
 }
 
 // vector operator ! : returns true for elements == 0
 static inline Vec4ib operator ! (Vec4i const & a) {
-    return _mm_cmpeq_epi32(a,_mm_setzero_si128());
+    return nsimd::eq(a, nsimd::set1<pack128_4i_t>(0));
 }
 
 // Functions for this class
@@ -2385,111 +1991,44 @@ static inline Vec4i if_add (Vec4ib const & f, Vec4i const & a, Vec4i const & b) 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int32_t horizontal_add (Vec4i const & a) {
-#ifdef __XOP__       // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epi32(a);
-    __m128i sum2  = _mm_shuffle_epi32(sum1,0x0E);          // high element
-    __m128i sum3  = _mm_add_epi32(sum1,sum2);              // sum
-    return          _mm_cvtsi128_si32(sum3);               // truncate to 32 bits
-#elif  INSTRSET >= 4  // SSSE3
-    __m128i sum1  = _mm_hadd_epi32(a,a);                   // horizontally add 4 elements in 2 steps
-    __m128i sum2  = _mm_hadd_epi32(sum1,sum1);
-    return          _mm_cvtsi128_si32(sum2);               // 32 bit sum
-#else                 // SSE2
-    __m128i sum1  = _mm_shuffle_epi32(a,0x0E);             // 2 high elements
-    __m128i sum2  = _mm_add_epi32(a,sum1);                 // 2 sums
-    __m128i sum3  = _mm_shuffle_epi32(sum2,0x01);          // 1 high element
-    __m128i sum4  = _mm_add_epi32(sum2,sum3);              // 2 sums
-    return          _mm_cvtsi128_si32(sum4);               // 32 bit sum
-#endif
+    return nsimd::addv(a);
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Elements are sign extended before adding to avoid overflow
 static inline int64_t horizontal_add_x (Vec4i const & a) {
-#ifdef __XOP__     // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epi32(a);
-#else              // SSE2
-    __m128i signs = _mm_srai_epi32(a,31);                  // sign of all elements
-    __m128i a01   = _mm_unpacklo_epi32(a,signs);           // sign-extended a0, a1
-    __m128i a23   = _mm_unpackhi_epi32(a,signs);           // sign-extended a2, a3
-    __m128i sum1  = _mm_add_epi64(a01,a23);                // add
-#endif
-    __m128i sum2  = _mm_unpackhi_epi64(sum1,sum1);         // high qword
-    __m128i sum3  = _mm_add_epi64(sum1,sum2);              // add
-#if defined (__x86_64__)
-    return          _mm_cvtsi128_si64(sum3);               // 64 bit mode
-#else
-    union {
-        __m128i x;  // silly definition of _mm_storel_epi64 requires __m128i
-        int64_t i;
-    } u;
-    _mm_storel_epi64(&u.x,sum3);
-    return u.i;
-#endif
+    return nsimd::addv(a);
 }
 
 // function add_saturated: add element by element, signed with saturation
 static inline Vec4i add_saturated(Vec4i const & a, Vec4i const & b) {
-    __m128i sum    = _mm_add_epi32(a, b);                  // a + b
-    __m128i axb    = _mm_xor_si128(a, b);                  // check if a and b have different sign
-    __m128i axs    = _mm_xor_si128(a, sum);                // check if a and sum have different sign
-    __m128i overf1 = _mm_andnot_si128(axb,axs);            // check if sum has wrong sign
-    __m128i overf2 = _mm_srai_epi32(overf1,31);            // -1 if overflow
-    __m128i asign  = _mm_srli_epi32(a,31);                 // 1  if a < 0
-    __m128i sat1   = _mm_srli_epi32(overf2,1);             // 7FFFFFFF if overflow
-    __m128i sat2   = _mm_add_epi32(sat1,asign);            // 7FFFFFFF if positive overflow 80000000 if negative overflow
-    return  selectb(overf2,sat2,sum);                      // sum if not overflow, else sat2
+    return nsimd::adds(a, b);
 }
 
 // function sub_saturated: subtract element by element, signed with saturation
 static inline Vec4i sub_saturated(Vec4i const & a, Vec4i const & b) {
-    __m128i diff   = _mm_sub_epi32(a, b);                  // a + b
-    __m128i axb    = _mm_xor_si128(a, b);                  // check if a and b have different sign
-    __m128i axs    = _mm_xor_si128(a, diff);               // check if a and sum have different sign
-    __m128i overf1 = _mm_and_si128(axb,axs);               // check if sum has wrong sign
-    __m128i overf2 = _mm_srai_epi32(overf1,31);            // -1 if overflow
-    __m128i asign  = _mm_srli_epi32(a,31);                 // 1  if a < 0
-    __m128i sat1   = _mm_srli_epi32(overf2,1);             // 7FFFFFFF if overflow
-    __m128i sat2   = _mm_add_epi32(sat1,asign);            // 7FFFFFFF if positive overflow 80000000 if negative overflow
-    return  selectb(overf2,sat2,diff);                     // diff if not overflow, else sat2
+    return nsimd::subs(a, b);
 }
 
 // function max: a > b ? a : b
 static inline Vec4i max(Vec4i const & a, Vec4i const & b) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_max_epi32(a,b);
-#else
-    __m128i greater = _mm_cmpgt_epi32(a,b);
-    return selectb(greater,a,b);
-#endif
+    return nsimd::max(a, b);
 }
 
 // function min: a < b ? a : b
 static inline Vec4i min(Vec4i const & a, Vec4i const & b) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_min_epi32(a,b);
-#else
-    __m128i greater = _mm_cmpgt_epi32(a,b);
-    return selectb(greater,b,a);
-#endif
+    return nsimd::min(a, b);
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec4i abs(Vec4i const & a) {
-#if INSTRSET >= 4     // SSSE3 supported
-    return _mm_sign_epi32(a,a);
-#else                 // SSE2
-    __m128i sign = _mm_srai_epi32(a,31);                   // sign of a
-    __m128i inv  = _mm_xor_si128(a,sign);                  // invert bits if negative
-    return         _mm_sub_epi32(inv,sign);                // add 1
-#endif
+    return nsimd::abs(a);
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec4i abs_saturated(Vec4i const & a) {
-    __m128i absa   = abs(a);                               // abs(a)
-    __m128i overfl = _mm_srai_epi32(absa,31);              // sign
-    return           _mm_add_epi32(absa,overfl);           // subtract 1 if 0x80000000
+    pack128_4i_t absa   = nsimd::abs(pack);
+    return nsimd::adds(absa, nsimd::set1<pack128_4i_t>(int(0)));
 }
 
 // function rotate_left all elements
@@ -2515,46 +2054,49 @@ static inline Vec4i rotate_left(Vec4i const & a, int b) {
 *****************************************************************************/
 
 class Vec4ui : public Vec4i {
+protected:
+    pack128_4ui_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec4ui() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec4ui(uint32_t i) {
-        xmm = _mm_set1_epi32(i);
+        xmm = nsimd::set1<pack128_4ui_t>(i);
     }
     // Constructor to build from all elements:
     Vec4ui(uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3) {
-        xmm = _mm_setr_epi32(i0, i1, i2, i3);
+        int32_t data[4] = {i0, i1, i2, i3};
+        xmm = nsimd::loadu<pack128_4ui_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec4ui(__m128i const & x) {
+    Vec4ui(pack128_4ui_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec4ui & operator = (__m128i const & x) {
+    Vec4ui & operator = (pack128_4ui_t const & x) {
         xmm = x;
         return *this;
     }
     // Member function to load from array (unaligned)
     Vec4ui & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_4ui_t>((int32_t const*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec4ui & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_4ui_t>((int32_t const*)p);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4ui const & insert(uint32_t index, uint32_t value) {
-        Vec4i::insert(index, value);
+        xmm = nsimd_common::set_bit<packl128_4i_t, int>(index, -int32_t(value), xmm);
         return *this;
     }
     // Member function extract a single element from vector
     uint32_t extract(uint32_t index) const {
-        return Vec4i::extract(index);
+        return nsimd_common::get_bit<packl128_8i_t, short>(index, xmm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
@@ -2567,17 +2109,17 @@ public:
 
 // vector operator + : add
 static inline Vec4ui operator + (Vec4ui const & a, Vec4ui const & b) {
-    return Vec4ui (Vec4i(a) + Vec4i(b));
+    return nsimd::add(a, b);
 }
 
 // vector operator - : subtract
 static inline Vec4ui operator - (Vec4ui const & a, Vec4ui const & b) {
-    return Vec4ui (Vec4i(a) - Vec4i(b));
+    return nsimd::sub(a, b);
 }
 
 // vector operator * : multiply
 static inline Vec4ui operator * (Vec4ui const & a, Vec4ui const & b) {
-    return Vec4ui (Vec4i(a) * Vec4i(b));
+    return nsimd::mul(a, b);
 }
 
 // vector operator / : divide
@@ -2585,7 +2127,7 @@ static inline Vec4ui operator * (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator >> : shift right logical all elements
 static inline Vec4ui operator >> (Vec4ui const & a, uint32_t b) {
-    return _mm_srl_epi32(a,_mm_cvtsi32_si128(b)); 
+    return nsimd::shr(a, b); 
 }
 
 // vector operator >> : shift right logical all elements
@@ -2601,24 +2143,17 @@ static inline Vec4ui & operator >>= (Vec4ui & a, int b) {
 
 // vector operator << : shift left all elements
 static inline Vec4ui operator << (Vec4ui const & a, uint32_t b) {
-    return Vec4ui ((Vec4i)a << (int32_t)b);
+    return nsimd::shl(a, b); 
 }
 
 // vector operator << : shift left all elements
 static inline Vec4ui operator << (Vec4ui const & a, int32_t b) {
-    return Vec4ui ((Vec4i)a << (int32_t)b);
+    return nsimd::shl(a, b);
 }
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec4ib operator > (Vec4ui const & a, Vec4ui const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec4ib)_mm_comgt_epu32(a,b);
-#else  // SSE2 instruction set
-    __m128i signbit = _mm_set1_epi32(0x80000000);
-    __m128i a1      = _mm_xor_si128(a,signbit);
-    __m128i b1      = _mm_xor_si128(b,signbit);
-    return (Vec4ib)_mm_cmpgt_epi32(a1,b1);                         // signed compare
-#endif
+    return nsimd::gt(a, b);
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
@@ -2628,14 +2163,7 @@ static inline Vec4ib operator < (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec4ib operator >= (Vec4ui const & a, Vec4ui const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return (Vec4ib)_mm_comge_epu32(a,b);
-#elif INSTRSET >= 5   // SSE4.1
-    __m128i max_ab = _mm_max_epu32(a,b);                   // max(a,b), unsigned
-    return (Vec4ib)_mm_cmpeq_epi32(a,max_ab);                      // a == max(a,b)
-#else  // SSE2 instruction set
-    return Vec4ib(Vec4i (~(b > a)));
-#endif
+    return nsimd::ge(a, b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
@@ -2645,7 +2173,7 @@ static inline Vec4ib operator <= (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator & : bitwise and
 static inline Vec4ui operator & (Vec4ui const & a, Vec4ui const & b) {
-    return Vec4ui(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a, b);
 }
 static inline Vec4ui operator && (Vec4ui const & a, Vec4ui const & b) {
     return a & b;
@@ -2653,7 +2181,7 @@ static inline Vec4ui operator && (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4ui operator | (Vec4ui const & a, Vec4ui const & b) {
-    return Vec4ui(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a, b);
 }
 static inline Vec4ui operator || (Vec4ui const & a, Vec4ui const & b) {
     return a | b;
@@ -2661,12 +2189,12 @@ static inline Vec4ui operator || (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4ui operator ^ (Vec4ui const & a, Vec4ui const & b) {
-    return Vec4ui(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a, b);
 }
 
 // vector operator ~ : bitwise not
 static inline Vec4ui operator ~ (Vec4ui const & a) {
-    return Vec4ui( ~ Vec128b(a));
+    return nsimd::notb(a);
 }
 
 // Functions for this class
@@ -2687,65 +2215,33 @@ static inline Vec4ui if_add (Vec4ib const & f, Vec4ui const & a, Vec4ui const & 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline uint32_t horizontal_add (Vec4ui const & a) {
-    return horizontal_add((Vec4i)a);
+    return nsimd::addv(a);
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Elements are zero extended before adding to avoid overflow
 static inline uint64_t horizontal_add_x (Vec4ui const & a) {
-#ifdef __XOP__     // AMD XOP instruction set
-    __m128i sum1  = _mm_haddq_epu32(a);
-#else              // SSE2
-    __m128i zero  = _mm_setzero_si128();                   // 0
-    __m128i a01   = _mm_unpacklo_epi32(a,zero);            // zero-extended a0, a1
-    __m128i a23   = _mm_unpackhi_epi32(a,zero);            // zero-extended a2, a3
-    __m128i sum1  = _mm_add_epi64(a01,a23);                // add
-#endif
-    __m128i sum2  = _mm_unpackhi_epi64(sum1,sum1);         // high qword
-    __m128i sum3  = _mm_add_epi64(sum1,sum2);              // add
-#if defined(_M_AMD64) || defined(_M_X64) || defined(__x86_64__) || defined(__amd64)
-    return          _mm_cvtsi128_si64(sum3);               // 64 bit mode
-#else
-    union {
-        __m128i x;  // silly definition of _mm_storel_epi64 requires __m128i
-        uint64_t i;
-    } u;
-    _mm_storel_epi64(&u.x,sum3);
-    return u.i;
-#endif
+    return nsimd::addv(a);
 }
 
 // function add_saturated: add element by element, unsigned with saturation
 static inline Vec4ui add_saturated(Vec4ui const & a, Vec4ui const & b) {
-    Vec4ui sum      = a + b;
-    Vec4ui aorb     = Vec4ui(a | b);
-    Vec4ui overflow = Vec4ui(sum < aorb);                  // overflow if a + b < (a | b)
-    return Vec4ui (sum | overflow);                        // return 0xFFFFFFFF if overflow
+    return nsimd::adds(a, b);    
 }
 
 // function sub_saturated: subtract element by element, unsigned with saturation
 static inline Vec4ui sub_saturated(Vec4ui const & a, Vec4ui const & b) {
-    Vec4ui diff      = a - b;
-    Vec4ui underflow = Vec4ui(diff > a);                   // underflow if a - b > a
-    return _mm_andnot_si128(underflow,diff);               // return 0 if underflow
+   return nsimd::adds(a, b); 
 }
 
 // function max: a > b ? a : b
 static inline Vec4ui max(Vec4ui const & a, Vec4ui const & b) {
-#if INSTRSET >= 5   // SSE4.1
-    return _mm_max_epu32(a,b);
-#else  // SSE2
-    return select(a > b, a, b);
-#endif
+    return nsimd::max(a, b);
 }
 
 // function min: a < b ? a : b
 static inline Vec4ui min(Vec4ui const & a, Vec4ui const & b) {
-#if INSTRSET >= 5   // SSE4.1
-    return _mm_min_epu32(a,b);
-#else  // SSE2
-    return select(a > b, b, a);
-#endif
+    return nsimd::min(a, b);
 }
 
 
@@ -2756,6 +2252,8 @@ static inline Vec4ui min(Vec4ui const & a, Vec4ui const & b) {
 *****************************************************************************/
 
 class Vec2q : public Vec128b {
+protected:
+    __m128i xmm; // Integer vector
 public:
     // Default constructor:
     Vec2q() {
@@ -2928,6 +2426,8 @@ public:
 *****************************************************************************/
 // Definition will be different for the AVX512 instruction set
 class Vec2qb : public Vec2q {
+protected:
+    __m128i xmm; // Integer vector
 public:
     // Default constructor:
     Vec2qb() {
@@ -3368,6 +2868,8 @@ static inline Vec2q rotate_left(Vec2q const & a, int b) {
 *****************************************************************************/
 
 class Vec2uq : public Vec2q {
+protected:
+    __m128i xmm; // Integer vector
 public:
     // Default constructor:
     Vec2uq() {
@@ -5334,7 +4836,7 @@ static inline Vec4ui compress_saturated (Vec2uq const & low, Vec2uq const & high
 *****************************************************************************/
 
 // Define popcount function. Gives sum of bits
-#if INSTRSET >= 6   // SSE4.2
+#if INSTRSET >= 6 && defined(NSIMD_X86)  // SSE4.2
     // popcnt instruction is not officially part of the SSE4.2 instruction set,
     // but available in all known processors with SSE4.2
 #if defined (__GNUC__) || defined(__clang__)

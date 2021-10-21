@@ -1716,7 +1716,7 @@ public:
     }    
     // Member function extract a single element from vector
     bool extract(uint32_t index) const {
-        return nsimd_common::get_bit<packl128_8i_t, short>(index, xmm) != 0;
+        return nsimd_common::get_bit<packl128_4i_t, int>(index, xmm) != 0;
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
@@ -2080,23 +2080,23 @@ public:
     }
     // Member function to load from array (unaligned)
     Vec4ui & load(void const * p) {
-        xmm = nsimd::loadu<pack128_4ui_t>((int32_t const*)p);
+        xmm = nsimd::loadu<pack128_4ui_t>((uint32_t const*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec4ui & load_a(void const * p) {
-        xmm = nsimd::loada<pack128_4ui_t>((int32_t const*)p);
+        xmm = nsimd::loada<pack128_4ui_t>((uint32_t const*)p);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec4ui const & insert(uint32_t index, uint32_t value) {
-        xmm = nsimd_common::set_bit<packl128_4i_t, int>(index, -int32_t(value), xmm);
+        xmm = nsimd_common::set_bit<pack128_4i_t, int>(index, -uint32_t(value), xmm);
         return *this;
     }
     // Member function extract a single element from vector
     uint32_t extract(uint32_t index) const {
-        return nsimd_common::get_bit<packl128_8i_t, short>(index, xmm);
+        return nsimd_common::get_bit<pack128_4i_t, int>(index, xmm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
@@ -2253,154 +2253,61 @@ static inline Vec4ui min(Vec4ui const & a, Vec4ui const & b) {
 
 class Vec2q : public Vec128b {
 protected:
-    __m128i xmm; // Integer vector
+    pack128_2i_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec2q() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec2q(int64_t i) {
-#if defined (_MSC_VER) && _MSC_VER < 1900 && ! defined(__INTEL_COMPILER)
-        // MS compiler has no _mm_set1_epi64x in 32 bit mode
-#if defined(__x86_64__)                                    // 64 bit mode
-#if _MSC_VER < 1700
-        __m128i x1 = _mm_cvtsi64_si128(i);                 // 64 bit load
-        xmm = _mm_unpacklo_epi64(x1,x1);                   // broadcast
-#else
-		xmm =  _mm_set1_epi64x(i);
-#endif
-#else
-        union {
-            int64_t q[2];
-            int32_t r[4];
-        } u;
-        u.q[0] = u.q[1] = i;
-        xmm = _mm_setr_epi32(u.r[0], u.r[1], u.r[2], u.r[3]);
-        /*    // this will use an mm register and produce store forwarding stall:
-        union {
-            __m64 m;
-            int64_t ii;
-        } u;
-        u.ii = i;
-        xmm = _mm_set1_epi64(u.m);
-		_m_empty();        */
-
-#endif  // __x86_64__
-#else   // Other compilers
-        xmm = _mm_set1_epi64x(i);
-#endif
+        xmm = nsimd::set1<pack128_2i_t>(i);
     }
     // Constructor to build from all elements:
     Vec2q(int64_t i0, int64_t i1) {
-#if defined (_MSC_VER)  && _MSC_VER < 1900 && ! defined(__INTEL_COMPILER)
-        // MS compiler has no _mm_set_epi64x in 32 bit mode
-#if defined(__x86_64__)                                    // 64 bit mode
-#if _MSC_VER < 1700
-        __m128i x0 = _mm_cvtsi64_si128(i0);                // 64 bit load
-        __m128i x1 = _mm_cvtsi64_si128(i1);                // 64 bit load
-        xmm = _mm_unpacklo_epi64(x0,x1);                   // combine
-#else
-		xmm = _mm_set_epi64x(i1, i0);
-#endif
-#else   // MS compiler in 32-bit mode
-        union {
-            int64_t q[2];
-            int32_t r[4];
-        } u;
-        u.q[0] = i0;  u.q[1] = i1;
-		// this is inefficient, but other solutions are worse
-        xmm = _mm_setr_epi32(u.r[0], u.r[1], u.r[2], u.r[3]);
-#endif  // __x86_64__
-#else   // Other compilers
-        xmm = _mm_set_epi64x(i1, i0);
-#endif
+        int64_t data[2] = {i0, i1};
+        xmm = nsimd::loadu<pack128_2i_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec2q(__m128i const & x) {
+    Vec2q(pack128_2i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec2q & operator = (__m128i const & x) {
+    Vec2q & operator = (pack128_2i_t const & x) {
         xmm = x;
         return *this;
     }
     // Type cast operator to convert to __m128i used in intrinsics
-    operator __m128i() const {
+    operator pack128_2i_t() const {
         return xmm;
     }
     // Member function to load from array (unaligned)
     Vec2q & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_2i_t>((int64_t const*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec2q & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_2i_t>((int64_t const*)p);
         return *this;
     }
     // Partial load. Load n elements and set the rest to 0
     Vec2q & load_partial(int n, void const * p) {
-        switch (n) {
-        case 0:
-            *this = 0;  break;
-        case 1:
-            // intrinsic for movq is missing!
-            *this = Vec2q(*(int64_t const*)p, 0);  break;
-        case 2:
-            load(p);  break;
-        default: 
-            break;
-        }
+        xmm = nsimd_common::load_partial<pack128_2i_t, packl128_2i_t, long>(p, n)
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, void * p) const {
-        switch (n) {
-        case 1:
-            int64_t q[2];
-            store(q);
-            *(int64_t*)p = q[0];  break;
-        case 2:
-            store(p);  break;
-        default:
-            break;
-        }
+        nsimd_common::store_partial<pack128_2i_t, packl128_2i_t, long>(p, n, xmm);
     }
     // cut off vector to n elements. The last 2-n elements are set to zero
     Vec2q & cutoff(int n) {
-        *this = Vec16c(xmm).cutoff(n * 8);
+        xmm = nsimd_common::cutoff<pack128_2i_t, packl128_4i_t>(xmm, n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec2q const & insert(uint32_t index, int64_t value) {
-#if INSTRSET >= 5 && defined(__x86_64__)  // SSE4.1 supported, 64 bit mode
-        if (index == 0) {
-            xmm = _mm_insert_epi64(xmm,value,0);
-        }
-        else {
-            xmm = _mm_insert_epi64(xmm,value,1);
-        }
-
-#else               // SSE2
-#if defined(__x86_64__)                                      // 64 bit mode
-        __m128i v = _mm_cvtsi64_si128(value);                // 64 bit load
-#else
-        union {
-            __m128i m;
-            int64_t ii;
-        } u;
-        u.ii = value;
-        __m128i v = _mm_loadl_epi64(&u.m);
-#endif
-        if (index == 0) {
-            v = _mm_unpacklo_epi64(v,v);     
-            xmm = _mm_unpackhi_epi64(v,xmm);
-        }
-        else {  // index = 1
-            xmm = _mm_unpacklo_epi64(xmm,v);
-        }
-#endif
+        xmm = nsimd_common::set_bit<pack128_2i_t, int64_t>(index, value, xmm)
         return *this;
     }
     // Member function extract a single element from vector
@@ -2427,26 +2334,28 @@ public:
 // Definition will be different for the AVX512 instruction set
 class Vec2qb : public Vec2q {
 protected:
-    __m128i xmm; // Integer vector
+    packl128_2i_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec2qb() {
     }
     // Constructor to build from all elements:
     Vec2qb(bool x0, bool x1) {
-        xmm = Vec2q(-int64_t(x0), -int64_t(x1));
+        int64_t vec[2] = {-int64_t(x0), -int64_t(x1)};
+        xmm = nsimd::loadla<packl128_2i_t>(vec);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec2qb(__m128i const & x) {
+    Vec2qb(packl128_2i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec2qb & operator = (__m128i const & x) {
+    Vec2qb & operator = (packl128_2i_t const & x) {
         xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
-    Vec2qb(bool b) : Vec2q(-int64_t(b)) {
+    Vec2qb(bool b) {
+        xmm = nsimd::set1<packl128_2i_t>(-int64_t(b));
     }
     // Assignment operator to broadcast scalar value:
     Vec2qb & operator = (bool b) {
@@ -2458,17 +2367,21 @@ private: // Prevent constructing from int, etc.
     Vec2qb & operator = (int x);
 public:
     Vec2qb & insert (int index, bool a) {
-        Vec2q::insert(index, -(int64_t)a);
+        xmm = nsimd_common::set_bit<packl128_2i_t, int64_t>(index, -int64_t(a), xmm);
         return *this;
     }    
     // Member function extract a single element from vector
     bool extract(uint32_t index) const {
-        return Vec2q::extract(index) != 0;
+        return nsimd_common::get_bit<packl128_2i_t, int64_t>(index, xmm) != 0;
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
     bool operator [] (uint32_t index) const {
         return extract(index);
+    }
+    // Type cast operator to convert
+    operator packl128_2i_t() const {
+        return xmm;
     }
 };
 
@@ -2481,7 +2394,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec2qb operator & (Vec2qb const & a, Vec2qb const & b) {
-    return Vec2qb(Vec128b(a) & Vec128b(b));
+    return nsimd::andl(a, b);
 }
 static inline Vec2qb operator && (Vec2qb const & a, Vec2qb const & b) {
     return a & b;
@@ -2494,7 +2407,7 @@ static inline Vec2qb & operator &= (Vec2qb & a, Vec2qb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2qb operator | (Vec2qb const & a, Vec2qb const & b) {
-    return Vec2qb(Vec128b(a) | Vec128b(b));
+    return nsimd::orl(a, b);
 }
 static inline Vec2qb operator || (Vec2qb const & a, Vec2qb const & b) {
     return a | b;
@@ -2507,7 +2420,7 @@ static inline Vec2qb & operator |= (Vec2qb & a, Vec2qb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2qb operator ^ (Vec2qb const & a, Vec2qb const & b) {
-    return Vec2qb(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorl(a, b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec2qb & operator ^= (Vec2qb & a, Vec2qb const & b) {
@@ -2517,7 +2430,7 @@ static inline Vec2qb & operator ^= (Vec2qb & a, Vec2qb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec2qb operator ~ (Vec2qb const & a) {
-    return Vec2qb( ~ Vec128b(a));
+    return nsimd::notl(a);
 }
 
 // vector operator ! : element not
@@ -2527,23 +2440,19 @@ static inline Vec2qb operator ! (Vec2qb const & a) {
 
 // vector function andnot
 static inline Vec2qb andnot (Vec2qb const & a, Vec2qb const & b) {
-    return Vec2qb(andnot(Vec128b(a), Vec128b(b)));
+    return nsimd:andnotl(a, b);
 }
 
 // Horizontal Boolean functions for Vec2qb
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec2qb const & a) {
-    return _mm_movemask_epi8(a) == 0xFFFF;
+    return nsimd::all(a);
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec2qb const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported. Use PTEST
-    return !_mm_testz_si128(a, a);
-#else
-    return _mm_movemask_epi8(a) != 0;
-#endif
+    return nsimd::any(a);
 } 
 
 
@@ -2555,7 +2464,7 @@ static inline bool horizontal_or(Vec2qb const & a) {
 
 // vector operator + : add element by element
 static inline Vec2q operator + (Vec2q const & a, Vec2q const & b) {
-    return _mm_add_epi64(a, b);
+    return nsimd::add(a, b);
 }
 
 // vector operator += : add
@@ -2579,12 +2488,12 @@ static inline Vec2q & operator ++ (Vec2q & a) {
 
 // vector operator - : subtract element by element
 static inline Vec2q operator - (Vec2q const & a, Vec2q const & b) {
-    return _mm_sub_epi64(a, b);
+    return nsimd::sub(a, b);
 }
 
 // vector operator - : unary minus
 static inline Vec2q operator - (Vec2q const & a) {
-    return _mm_sub_epi64(_mm_setzero_si128(), a);
+    return nsimd::sub(nsimd::set1<pack128_2i_t>(0.0), a);
 }
 
 // vector operator -= : subtract
@@ -2608,24 +2517,7 @@ static inline Vec2q & operator -- (Vec2q & a) {
 
 // vector operator * : multiply element by element
 static inline Vec2q operator * (Vec2q const & a, Vec2q const & b) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
-    return _mm_mullo_epi64(a, b);
-#elif INSTRSET >= 5   // SSE4.1 supported
-    // instruction does not exist. Split into 32-bit multiplies
-    __m128i bswap   = _mm_shuffle_epi32(b,0xB1);           // b0H,b0L,b1H,b1L (swap H<->L)
-    __m128i prodlh  = _mm_mullo_epi32(a,bswap);            // a0Lb0H,a0Hb0L,a1Lb1H,a1Hb1L, 32 bit L*H products
-    __m128i zero    = _mm_setzero_si128();                 // 0
-    __m128i prodlh2 = _mm_hadd_epi32(prodlh,zero);         // a0Lb0H+a0Hb0L,a1Lb1H+a1Hb1L,0,0
-    __m128i prodlh3 = _mm_shuffle_epi32(prodlh2,0x73);     // 0, a0Lb0H+a0Hb0L, 0, a1Lb1H+a1Hb1L
-    __m128i prodll  = _mm_mul_epu32(a,b);                  // a0Lb0L,a1Lb1L, 64 bit unsigned products
-    __m128i prod    = _mm_add_epi64(prodll,prodlh3);       // a0Lb0L+(a0Lb0H+a0Hb0L)<<32, a1Lb1L+(a1Lb1H+a1Hb1L)<<32
-    return  prod;
-#else               // SSE2
-    int64_t aa[2], bb[2];
-    a.store(aa);                                           // split into elements
-    b.store(bb);
-    return Vec2q(aa[0]*bb[0], aa[1]*bb[1]);                // multiply elements separetely
-#endif
+    return nsimd::mul(a, b);
 }
 
 // vector operator *= : multiply
@@ -2636,7 +2528,7 @@ static inline Vec2q & operator *= (Vec2q & a, Vec2q const & b) {
 
 // vector operator << : shift left
 static inline Vec2q operator << (Vec2q const & a, int32_t b) {
-    return _mm_sll_epi64(a,_mm_cvtsi32_si128(b));
+    return nsimd::shl(a, b);
 }
 
 // vector operator <<= : shift left
@@ -2647,22 +2539,7 @@ static inline Vec2q & operator <<= (Vec2q & a, int32_t b) {
 
 // vector operator >> : shift right arithmetic
 static inline Vec2q operator >> (Vec2q const & a, int32_t b) {
-    // instruction does not exist. Split into 32-bit shifts
-    if (b <= 32) {
-        __m128i bb   = _mm_cvtsi32_si128(b);               // b
-        __m128i sra  = _mm_sra_epi32(a,bb);                // a >> b signed dwords
-        __m128i srl  = _mm_srl_epi64(a,bb);                // a >> b unsigned qwords
-        __m128i mask = _mm_setr_epi32(0,-1,0,-1);          // mask for signed high part
-        return  selectb(mask,sra,srl);
-    }
-    else {  // b > 32
-        __m128i bm32 = _mm_cvtsi32_si128(b-32);            // b - 32
-        __m128i sign = _mm_srai_epi32(a,31);               // sign of a
-        __m128i sra2 = _mm_sra_epi32(a,bm32);              // a >> (b-32) signed dwords
-        __m128i sra3 = _mm_srli_epi64(sra2,32);            // a >> (b-32) >> 32 (second shift unsigned qword)
-        __m128i mask = _mm_setr_epi32(0,-1,0,-1);          // mask for high part containing only sign
-        return  selectb(mask,sign,sra3);
-    }
+    return nsimd::shr(a, b);
 }
 
 // vector operator >>= : shift right arithmetic
@@ -2673,45 +2550,17 @@ static inline Vec2q & operator >>= (Vec2q & a, int32_t b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec2qb operator == (Vec2q const & a, Vec2q const & b) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_cmpeq_epi64(a, b);
-#else               // SSE2
-    // no 64 compare instruction. Do two 32 bit compares
-    __m128i com32  = _mm_cmpeq_epi32(a,b);                 // 32 bit compares
-    __m128i com32s = _mm_shuffle_epi32(com32,0xB1);        // swap low and high dwords
-    __m128i test   = _mm_and_si128(com32,com32s);          // low & high
-    __m128i teste  = _mm_srai_epi32(test,31);              // extend sign bit to 32 bits
-    __m128i testee = _mm_shuffle_epi32(teste,0xF5);        // extend sign bit to 64 bits
-    return  Vec2qb(Vec2q(testee));
-#endif
+    return nsimd::eq(a, b);
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec2qb operator != (Vec2q const & a, Vec2q const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return Vec2qb(_mm_comneq_epi64(a,b));
-#else  // SSE2 instruction set
-    return Vec2qb(Vec2q(~(a == b)));
-#endif
+    return nsimd::ne(a, b);
 }
   
 // vector operator < : returns true for elements for which a < b
 static inline Vec2qb operator < (Vec2q const & a, Vec2q const & b) {
-#if INSTRSET >= 6   // SSE4.2 supported
-    return Vec2qb(Vec2q(_mm_cmpgt_epi64(b, a)));
-#else               // SSE2
-    // no 64 compare instruction. Subtract
-    __m128i s      = _mm_sub_epi64(a,b);                   // a-b
-    // a < b if a and b have same sign and s < 0 or (a < 0 and b >= 0)
-    // The latter () corrects for overflow
-    __m128i axb    = _mm_xor_si128(a,b);                   // a ^ b
-    __m128i anb    = _mm_andnot_si128(b,a);                // a & ~b
-    __m128i snaxb  = _mm_andnot_si128(axb,s);              // s & ~(a ^ b)
-    __m128i or1    = _mm_or_si128(anb,snaxb);              // (a & ~b) | (s & ~(a ^ b))
-    __m128i teste  = _mm_srai_epi32(or1,31);               // extend sign bit to 32 bits
-    __m128i testee = _mm_shuffle_epi32(teste,0xF5);        // extend sign bit to 64 bits
-    return  testee;
-#endif
+    return nsimd::lt(a, b);
 }
 
 // vector operator > : returns true for elements for which a > b
@@ -2721,11 +2570,7 @@ static inline Vec2qb operator > (Vec2q const & a, Vec2q const & b) {
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec2qb operator >= (Vec2q const & a, Vec2q const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return Vec2qb(_mm_comge_epi64(a,b));
-#else  // SSE2 instruction set
-    return Vec2qb(Vec2q(~(a < b)));
-#endif
+    return nsimd::ge(a, b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
@@ -2735,7 +2580,7 @@ static inline Vec2qb operator <= (Vec2q const & a, Vec2q const & b) {
 
 // vector operator & : bitwise and
 static inline Vec2q operator & (Vec2q const & a, Vec2q const & b) {
-    return Vec2q(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a, b);
 }
 static inline Vec2q operator && (Vec2q const & a, Vec2q const & b) {
     return a & b;
@@ -2748,7 +2593,7 @@ static inline Vec2q & operator &= (Vec2q & a, Vec2q const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2q operator | (Vec2q const & a, Vec2q const & b) {
-    return Vec2q(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a, b);
 }
 static inline Vec2q operator || (Vec2q const & a, Vec2q const & b) {
     return a | b;
@@ -2761,7 +2606,7 @@ static inline Vec2q & operator |= (Vec2q & a, Vec2q const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2q operator ^ (Vec2q const & a, Vec2q const & b) {
-    return Vec2q(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a, b);
 }
 // vector operator ^= : bitwise xor
 static inline Vec2q & operator ^= (Vec2q & a, Vec2q const & b) {
@@ -2771,12 +2616,12 @@ static inline Vec2q & operator ^= (Vec2q & a, Vec2q const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec2q operator ~ (Vec2q const & a) {
-    return Vec2q( ~ Vec128b(a));
+    return nsimd::notb(a);
 }
 
 // vector operator ! : logical not, returns true for elements == 0
 static inline Vec2qb operator ! (Vec2q const & a) {
-    return a == Vec2q(_mm_setzero_si128());
+    return nsimd::eq(a, nsimd::set1<pack128_2i_t>(0.0));
 }
 
 // Functions for this class
@@ -2797,52 +2642,28 @@ static inline Vec2q if_add (Vec2qb const & f, Vec2q const & a, Vec2q const & b) 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int64_t horizontal_add (Vec2q const & a) {
-    __m128i sum1  = _mm_shuffle_epi32(a,0x0E);             // high element
-    __m128i sum2  = _mm_add_epi64(a,sum1);                 // sum
-#if defined(__x86_64__)
-    return          _mm_cvtsi128_si64(sum2);               // 64 bit mode
-#else
-    union {
-        __m128i x;  // silly definition of _mm_storel_epi64 requires __m128i
-        int64_t i;
-    } u;
-    _mm_storel_epi64(&u.x,sum2);
-    return u.i;
-#endif
+    return nsimd::addv(a);
 }
 
 // function max: a > b ? a : b
 static inline Vec2q max(Vec2q const & a, Vec2q const & b) {
-    return select(a > b, a, b);
+    return nsimd::max(a, b);
 }
 
 // function min: a < b ? a : b
 static inline Vec2q min(Vec2q const & a, Vec2q const & b) {
-    return select(a < b, a, b);
+    return nsimd::min(a, b);
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec2q abs(Vec2q const & a) {
-#if INSTRSET >= 6     // SSE4.2 supported
-    __m128i sign  = _mm_cmpgt_epi64(_mm_setzero_si128(),a);// 0 > a
-#else                 // SSE2
-    __m128i signh = _mm_srai_epi32(a,31);                  // sign in high dword
-    __m128i sign  = _mm_shuffle_epi32(signh,0xF5);         // copy sign to low dword
-#endif
-    __m128i inv   = _mm_xor_si128(a,sign);                 // invert bits if negative
-    return          _mm_sub_epi64(inv,sign);               // add 1
+    return nsimd::abs(a);
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec2q abs_saturated(Vec2q const & a) {
-    __m128i absa   = abs(a);                               // abs(a)
-#if INSTRSET >= 6     // SSE4.2 supported
-    __m128i overfl = _mm_cmpgt_epi64(_mm_setzero_si128(),absa);// 0 > a
-#else                 // SSE2
-    __m128i signh = _mm_srai_epi32(absa,31);               // sign in high dword
-    __m128i overfl= _mm_shuffle_epi32(signh,0xF5);         // copy sign to low dword
-#endif
-    return           _mm_add_epi64(absa,overfl);           // subtract 1 if 0x8000000000000000
+    pack128_2i_t absa   = nsimd::abs(pack);
+    return nsimd::adds(absa, nsimd::set1<pack128_2i_t>(0.0));
 }
 
 // function rotate_left all elements
@@ -2869,47 +2690,48 @@ static inline Vec2q rotate_left(Vec2q const & a, int b) {
 
 class Vec2uq : public Vec2q {
 protected:
-    __m128i xmm; // Integer vector
+    pack128_2ui_t xmm; // Integer vector
 public:
     // Default constructor:
     Vec2uq() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec2uq(uint64_t i) {
-        xmm = Vec2q(i);
+        xmm = nsimd::set1<pack128_2ui_t>(i);
     }
     // Constructor to build from all elements:
     Vec2uq(uint64_t i0, uint64_t i1) {
-        xmm = Vec2q(i0, i1);
+        uint64_t data[2] = {i0, i1};
+        xmm = nsimd::loadu<pack128_2ui_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec2uq(__m128i const & x) {
+    Vec2uq(pack128_2ui_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec2uq & operator = (__m128i const & x) {
+    Vec2uq & operator = (pack128_2ui_t const & x) {
         xmm = x;
         return *this;
     }
     // Member function to load from array (unaligned)
     Vec2uq & load(void const * p) {
-        xmm = _mm_loadu_si128((__m128i const*)p);
+        xmm = nsimd::loadu<pack128_2ui_t>((uint64_t const*)p);
         return *this;
     }
     // Member function to load from array (aligned)
     Vec2uq & load_a(void const * p) {
-        xmm = _mm_load_si128((__m128i const*)p);
+        xmm = nsimd::loada<pack128_2ui_t>((uint64_t const*)p);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec2uq const & insert(uint32_t index, uint64_t value) {
-        Vec2q::insert(index, value);
+        xmm = nsimd_common::set_bit<pack128_2ui_t, uint64_t>(index, -value, xmm);
         return *this;
     }
     // Member function extract a single element from vector
     uint64_t extract(uint32_t index) const {
-        return Vec2q::extract(index);
+        return nsimd_common::get_bit<pack128_2ui_t, uint64_t>(index, xmm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
@@ -2922,22 +2744,22 @@ public:
 
 // vector operator + : add
 static inline Vec2uq operator + (Vec2uq const & a, Vec2uq const & b) {
-    return Vec2uq (Vec2q(a) + Vec2q(b));
+    return nsimd::add(a, b);
 }
 
 // vector operator - : subtract
 static inline Vec2uq operator - (Vec2uq const & a, Vec2uq const & b) {
-    return Vec2uq (Vec2q(a) - Vec2q(b));
+    return nsimd::sub(a, b);
 }
 
 // vector operator * : multiply element by element
 static inline Vec2uq operator * (Vec2uq const & a, Vec2uq const & b) {
-    return Vec2uq (Vec2q(a) * Vec2q(b));
+    return nsimd::mul(a, b);
 }
 
 // vector operator >> : shift right logical all elements
 static inline Vec2uq operator >> (Vec2uq const & a, uint32_t b) {
-    return _mm_srl_epi64(a,_mm_cvtsi32_si128(b)); 
+    return nsimd::shr(a, b); 
 }
 
 // vector operator >> : shift right logical all elements
@@ -2953,60 +2775,37 @@ static inline Vec2uq & operator >>= (Vec2uq & a, int b) {
 
 // vector operator << : shift left all elements
 static inline Vec2uq operator << (Vec2uq const & a, uint32_t b) {
-    return Vec2uq ((Vec2q)a << (int32_t)b);
+    return nsimd::shl(a, b);
 }
 
 // vector operator << : shift left all elements
 static inline Vec2uq operator << (Vec2uq const & a, int32_t b) {
-    return Vec2uq ((Vec2q)a << b);
+    return a << (uint32_t)b;
 }
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec2qb operator > (Vec2uq const & a, Vec2uq const & b) {
-#if defined ( __XOP__ ) // AMD XOP instruction set
-    return Vec2qb(_mm_comgt_epu64(a,b));
-#elif INSTRSET >= 6 // SSE4.2
-    __m128i sign64 = constant4ui<0,0x80000000,0,0x80000000>();
-    __m128i aflip  = _mm_xor_si128(a, sign64);             // flip sign bits to use signed compare
-    __m128i bflip  = _mm_xor_si128(b, sign64);
-    Vec2q   cmp    = _mm_cmpgt_epi64(aflip,bflip);
-    return Vec2qb(cmp);
-#else  // SSE2 instruction set
-    __m128i sign32  = _mm_set1_epi32(0x80000000);          // sign bit of each dword
-    __m128i aflip   = _mm_xor_si128(a,sign32);             // a with sign bits flipped to use signed compare
-    __m128i bflip   = _mm_xor_si128(b,sign32);             // b with sign bits flipped to use signed compare
-    __m128i equal   = _mm_cmpeq_epi32(a,b);                // a == b, dwords
-    __m128i bigger  = _mm_cmpgt_epi32(aflip,bflip);        // a > b, dwords
-    __m128i biggerl = _mm_shuffle_epi32(bigger,0xA0);      // a > b, low dwords copied to high dwords
-    __m128i eqbig   = _mm_and_si128(equal,biggerl);        // high part equal and low part bigger
-    __m128i hibig   = _mm_or_si128(bigger,eqbig);          // high part bigger or high part equal and low part bigger
-    __m128i big     = _mm_shuffle_epi32(hibig,0xF5);       // result copied to low part
-    return  Vec2qb(Vec2q(big));
-#endif
+    return nsimd::gt(a, b);
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
 static inline Vec2qb operator < (Vec2uq const & a, Vec2uq const & b) {
-    return b > a;
+    return nsimd::lt(a, b);
 }
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec2qb operator >= (Vec2uq const & a, Vec2uq const & b) {
-#ifdef __XOP__  // AMD XOP instruction set
-    return Vec2qb(_mm_comge_epu64(a,b));
-#else  // SSE2 instruction set
-    return  Vec2qb(Vec2q(~(b > a)));
-#endif
+    return nsimd::ge(a, b);
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
 static inline Vec2qb operator <= (Vec2uq const & a, Vec2uq const & b) {
-    return b >= a;
+    return nsimd::le(a, b);
 }
 
 // vector operator & : bitwise and
 static inline Vec2uq operator & (Vec2uq const & a, Vec2uq const & b) {
-    return Vec2uq(Vec128b(a) & Vec128b(b));
+    return nsimd::andb(a, b);
 }
 static inline Vec2uq operator && (Vec2uq const & a, Vec2uq const & b) {
     return a & b;
@@ -3014,7 +2813,7 @@ static inline Vec2uq operator && (Vec2uq const & a, Vec2uq const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2uq operator | (Vec2uq const & a, Vec2uq const & b) {
-    return Vec2uq(Vec128b(a) | Vec128b(b));
+    return nsimd::orb(a, b);
 }
 static inline Vec2uq operator || (Vec2uq const & a, Vec2uq const & b) {
     return a | b;
@@ -3022,12 +2821,12 @@ static inline Vec2uq operator || (Vec2uq const & a, Vec2uq const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2uq operator ^ (Vec2uq const & a, Vec2uq const & b) {
-    return Vec2uq(Vec128b(a) ^ Vec128b(b));
+    return nsimd::xorb(a, b);
 }
 
 // vector operator ~ : bitwise not
 static inline Vec2uq operator ~ (Vec2uq const & a) {
-    return Vec2uq( ~ Vec128b(a));
+    return nsimd::orb(a);
 }
 
 
@@ -3049,17 +2848,17 @@ static inline Vec2uq if_add (Vec2qb const & f, Vec2uq const & a, Vec2uq const & 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline uint64_t horizontal_add (Vec2uq const & a) {
-    return horizontal_add((Vec2q)a);
+    return nsimd::addv(a);
 }
 
 // function max: a > b ? a : b
 static inline Vec2uq max(Vec2uq const & a, Vec2uq const & b) {
-    return select(a > b, a, b);
+    return nsimd::max(a, b);
 }
 
 // function min: a < b ? a : b
 static inline Vec2uq min(Vec2uq const & a, Vec2uq const & b) {
-    return select(a > b, b, a);
+    return nsimd::min(a, b);
 }
 
 
@@ -4681,48 +4480,25 @@ static inline Vec2uq extend_high (Vec4ui const & a) {
 // Function compress : packs two vectors of 16-bit integers into one vector of 8-bit integers
 // Overflow wraps around
 static inline Vec16c compress (Vec8s const & low, Vec8s const & high) {
-    __m128i mask  = _mm_set1_epi32(0x00FF00FF);            // mask for low bytes
-    __m128i lowm  = _mm_and_si128(low,mask);               // bytes of low
-    __m128i highm = _mm_and_si128(high,mask);              // bytes of high
-    return  _mm_packus_epi16(lowm,highm);                  // unsigned pack
+    return nsimd_common::compress16(low, high);
 }
 
 // Function compress : packs two vectors of 16-bit integers into one vector of 8-bit integers
 // Signed, with saturation
 static inline Vec16c compress_saturated (Vec8s const & low, Vec8s const & high) {
-    return  _mm_packs_epi16(low,high);
+    return nsimd_common::compress16(low, high, true);
 }
 
 // Function compress : packs two vectors of 16-bit integers to one vector of 8-bit integers
 // Unsigned, overflow wraps around
 static inline Vec16uc compress (Vec8us const & low, Vec8us const & high) {
-    return  Vec16uc (compress((Vec8s)low, (Vec8s)high));
+    return  nsimd_common::compress16(low, high);
 }
 
 // Function compress : packs two vectors of 16-bit integers into one vector of 8-bit integers
 // Unsigned, with saturation
 static inline Vec16uc compress_saturated (Vec8us const & low, Vec8us const & high) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    __m128i maxval  = _mm_set1_epi32(0x00FF00FF);          // maximum value
-    __m128i minval  = _mm_setzero_si128();                 // minimum value = 0
-    __m128i low1    = _mm_min_epu16(low,maxval);           // upper limit
-    __m128i high1   = _mm_min_epu16(high,maxval);          // upper limit
-    __m128i low2    = _mm_max_epu16(low1,minval);          // lower limit
-    __m128i high2   = _mm_max_epu16(high1,minval);         // lower limit
-    return            _mm_packus_epi16(low2,high2);        // this instruction saturates from signed 32 bit to unsigned 16 bit
-#else
-    __m128i zero    = _mm_setzero_si128();                 // 0
-    __m128i signlow = _mm_cmpgt_epi16(zero,low);           // sign bit of low
-    __m128i signhi  = _mm_cmpgt_epi16(zero,high);          // sign bit of high
-    __m128i slow2   = _mm_srli_epi16(signlow,8);           // FF if low negative
-    __m128i shigh2  = _mm_srli_epi16(signhi,8);            // FF if high negative
-    __m128i maskns  = _mm_set1_epi32(0x7FFF7FFF);          // mask for removing sign bit
-    __m128i lowns   = _mm_and_si128(low,maskns);           // low,  with sign bit removed
-    __m128i highns  = _mm_and_si128(high,maskns);          // high, with sign bit removed
-    __m128i lowo    = _mm_or_si128(lowns,slow2);           // low,  sign bit replaced by 00FF
-    __m128i higho   = _mm_or_si128(highns,shigh2);         // high, sign bit replaced by 00FF
-    return            _mm_packus_epi16(lowo,higho);        // this instruction saturates from signed 16 bit to unsigned 8 bit
-#endif
+    return nsimd_common::compress16(low, high, true);
 }
 
 // Compress 32-bit integers to 16-bit integers, signed and unsigned, with and without saturation
@@ -4730,58 +4506,25 @@ static inline Vec16uc compress_saturated (Vec8us const & low, Vec8us const & hig
 // Function compress : packs two vectors of 32-bit integers into one vector of 16-bit integers
 // Overflow wraps around
 static inline Vec8s compress (Vec4i const & low, Vec4i const & high) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    __m128i mask  = _mm_set1_epi32(0x0000FFFF);            // mask for low words
-    __m128i lowm  = _mm_and_si128(low,mask);               // bytes of low
-    __m128i highm = _mm_and_si128(high,mask);              // bytes of high
-    return  _mm_packus_epi32(lowm,highm);                  // unsigned pack
-#else
-    __m128i low1  = _mm_shufflelo_epi16(low,0xD8);         // low words in place
-    __m128i high1 = _mm_shufflelo_epi16(high,0xD8);        // low words in place
-    __m128i low2  = _mm_shufflehi_epi16(low1,0xD8);        // low words in place
-    __m128i high2 = _mm_shufflehi_epi16(high1,0xD8);       // low words in place
-    __m128i low3  = _mm_shuffle_epi32(low2,0xD8);          // low dwords of low  to pos. 0 and 32
-    __m128i high3 = _mm_shuffle_epi32(high2,0xD8);         // low dwords of high to pos. 0 and 32
-    return  _mm_unpacklo_epi64(low3,high3);                // interleave
-#endif
+    return nsimd_common::compress8(low, high);
 }
 
 // Function compress : packs two vectors of 32-bit integers into one vector of 16-bit integers
 // Signed with saturation
 static inline Vec8s compress_saturated (Vec4i const & low, Vec4i const & high) {
-    return  _mm_packs_epi32(low,high);                     // pack with signed saturation
+    return nsimd_common::compress8<pack128_8i_t, int16_t, pack128_4i_t, int32_t>(low, high, true);
 }
 
 // Function compress : packs two vectors of 32-bit integers into one vector of 16-bit integers
 // Overflow wraps around
 static inline Vec8us compress (Vec4ui const & low, Vec4ui const & high) {
-    return Vec8us (compress((Vec4i)low, (Vec4i)high));
+    return nsimd_common::compress8<pack128_8ui_t, uint16_t, pack128_4ui_t, uint32_t>(low, high);
 }
 
 // Function compress : packs two vectors of 32-bit integers into one vector of 16-bit integers
 // Unsigned, with saturation
 static inline Vec8us compress_saturated (Vec4ui const & low, Vec4ui const & high) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    __m128i maxval  = _mm_set1_epi32(0x0000FFFF);          // maximum value
-    __m128i minval  = _mm_setzero_si128();                 // minimum value = 0
-    __m128i low1    = _mm_min_epu32(low,maxval);           // upper limit
-    __m128i high1   = _mm_min_epu32(high,maxval);          // upper limit
-    __m128i low2    = _mm_max_epu32(low1,minval);          // lower limit
-    __m128i high2   = _mm_max_epu32(high1,minval);         // lower limit
-    return            _mm_packus_epi32(low2,high2);        // this instruction saturates from signed 32 bit to unsigned 16 bit
-#else
-    __m128i zero     = _mm_setzero_si128();                // 0
-    __m128i lowzero  = _mm_cmpeq_epi16(low,zero);          // for each word is zero
-    __m128i highzero = _mm_cmpeq_epi16(high,zero);         // for each word is zero
-    __m128i mone     = _mm_set1_epi32(-1);                 // FFFFFFFF
-    __m128i lownz    = _mm_xor_si128(lowzero,mone);        // for each word is nonzero
-    __m128i highnz   = _mm_xor_si128(highzero,mone);       // for each word is nonzero
-    __m128i lownz2   = _mm_srli_epi32(lownz,16);           // shift down to low dword
-    __m128i highnz2  = _mm_srli_epi32(highnz,16);          // shift down to low dword
-    __m128i lowsatur = _mm_or_si128(low,lownz2);           // low, saturated
-    __m128i hisatur  = _mm_or_si128(high,highnz2);         // high, saturated
-    return  Vec8us (compress(Vec4i(lowsatur), Vec4i(hisatur)));
-#endif
+    return nsimd_common::compress8<pack128_8ui_t, uint16_t, pack128_4ui_t, uint32_t>(low, high, true);
 }
 
 // Compress 64-bit integers to 32-bit integers, signed and unsigned, with and without saturation
@@ -4789,44 +4532,26 @@ static inline Vec8us compress_saturated (Vec4ui const & low, Vec4ui const & high
 // Function compress : packs two vectors of 64-bit integers into one vector of 32-bit integers
 // Overflow wraps around
 static inline Vec4i compress (Vec2q const & low, Vec2q const & high) {
-    __m128i low2  = _mm_shuffle_epi32(low,0xD8);           // low dwords of low  to pos. 0 and 32
-    __m128i high2 = _mm_shuffle_epi32(high,0xD8);          // low dwords of high to pos. 0 and 32
-    return  _mm_unpacklo_epi64(low2,high2);                // interleave
+    return nsimd_common::compress4<pack128_4i_t, int32_t, pack128_2i_t, int64_t>(low, high);
 }
 
 // Function compress : packs two vectors of 64-bit integers into one vector of 32-bit integers
 // Signed, with saturation
 // This function is very inefficient unless the SSE4.2 instruction set is supported
 static inline Vec4i compress_saturated (Vec2q const & low, Vec2q const & high) {
-    Vec2q maxval = _mm_set_epi32(0,0x7FFFFFFF,0,0x7FFFFFFF);
-    Vec2q minval = _mm_set_epi32(-1,0x80000000,-1,0x80000000);
-    Vec2q low1   = min(low,maxval);
-    Vec2q high1  = min(high,maxval);
-    Vec2q low2   = max(low1,minval);
-    Vec2q high2  = max(high1,minval);
-    return compress(low2,high2);
+    return nsimd_common::compress4<pack128_4i_t, int32_t, pack128_2i_t, int64_t>(low, high, true);
 }
 
 // Function compress : packs two vectors of 32-bit integers into one vector of 16-bit integers
 // Overflow wraps around
 static inline Vec4ui compress (Vec2uq const & low, Vec2uq const & high) {
-    return Vec4ui (compress((Vec2q)low, (Vec2q)high));
+    return nsimd_common::compress4<pack128_4ui_t, uint32_t, pack128_2ui_t, uint64_t>(low, high);
 }
 
 // Function compress : packs two vectors of 64-bit integers into one vector of 32-bit integers
 // Unsigned, with saturation
 static inline Vec4ui compress_saturated (Vec2uq const & low, Vec2uq const & high) {
-    __m128i zero     = _mm_setzero_si128();                // 0
-    __m128i lowzero  = _mm_cmpeq_epi32(low,zero);          // for each dword is zero
-    __m128i highzero = _mm_cmpeq_epi32(high,zero);         // for each dword is zero
-    __m128i mone     = _mm_set1_epi32(-1);                 // FFFFFFFF
-    __m128i lownz    = _mm_xor_si128(lowzero,mone);        // for each dword is nonzero
-    __m128i highnz   = _mm_xor_si128(highzero,mone);       // for each dword is nonzero
-    __m128i lownz2   = _mm_srli_epi64(lownz,32);           // shift down to low dword
-    __m128i highnz2  = _mm_srli_epi64(highnz,32);          // shift down to low dword
-    __m128i lowsatur = _mm_or_si128(low,lownz2);           // low, saturated
-    __m128i hisatur  = _mm_or_si128(high,highnz2);         // high, saturated
-    return  Vec4ui (compress(Vec2q(lowsatur), Vec2q(hisatur)));
+    return nsimd_common::compress4<pack128_4ui_t, uint32_t, pack128_2ui_t, uint64_t>(low, high, true);
 }
 
 /*****************************************************************************
@@ -4836,31 +4561,9 @@ static inline Vec4ui compress_saturated (Vec2uq const & low, Vec2uq const & high
 *****************************************************************************/
 
 // Define popcount function. Gives sum of bits
-#if INSTRSET >= 6 && defined(NSIMD_X86)  // SSE4.2
-    // popcnt instruction is not officially part of the SSE4.2 instruction set,
-    // but available in all known processors with SSE4.2
-#if defined (__GNUC__) || defined(__clang__)
-static inline uint32_t vml_popcnt (uint32_t a) __attribute__ ((pure));
 static inline uint32_t vml_popcnt (uint32_t a) {	
-    uint32_t r;
-    __asm("popcnt %1, %0" : "=r"(r) : "r"(a) : );
-    return r;
+    return nsimd_popcnt32_(a);
 }
-#else
-static inline uint32_t vml_popcnt (uint32_t a) {	
-    return _mm_popcnt_u32(a);  // MS intrinsic
-}
-#endif // platform
-#else  // no SSE4.2
-static inline uint32_t vml_popcnt (uint32_t a) {	
-    // popcnt instruction not available
-    uint32_t b = a - ((a >> 1) & 0x55555555);
-    uint32_t c = (b & 0x33333333) + ((b >> 2) & 0x33333333);
-    uint32_t d = (c + (c >> 4)) & 0x0F0F0F0F;
-    uint32_t e = d * 0x01010101;
-    return   e >> 24;
-}
-#endif
 
 
 // Define bit-scan-forward function. Gives index to lowest set bit
@@ -4878,6 +4581,7 @@ static inline uint32_t bit_scan_forward (uint32_t a) {
     return r;
 }
 #endif
+
 
 // Define bit-scan-reverse function. Gives index to highest set bit = floor(log2(a))
 #if defined (__GNUC__) || defined(__clang__)
@@ -4917,437 +4621,72 @@ template <> struct BitScanR<0> {enum {val = 0};};          // Avoid infinite tem
 *          Integer division operators
 *
 ******************************************************************************
-*
-* The instruction set does not support integer vector division. Instead, we
-* are using a method for fast integer division based on multiplication and
-* shift operations. This method is faster than simple integer division if the
-* same divisor is used multiple times.
-*
-* All elements in a vector are divided by the same divisor. It is not possible
-* to divide different elements of the same vector by different divisors.
-*
-* The parameters used for fast division are stored in an object of a 
-* Divisor class. This object can be created implicitly, for example in:
-*        Vec4i a, b; int c;
-*        a = b / c;
-* or explicitly as:
-*        a = b / Divisor_i(c);
-*
-* It takes more time to compute the parameters used for fast division than to
-* do the division. Therefore, it is advantageous to use the same divisor object
-* multiple times. For example, to divide 80 unsigned short integers by 10:
-*
-*        uint16_t dividends[80], quotients[80];         // numbers to work with
-*        Divisor_us div10(10);                          // make divisor object for dividing by 10
-*        Vec8us temp;                                   // temporary vector
-*        for (int i = 0; i < 80; i += 8) {              // loop for 4 elements per iteration
-*            temp.load(dividends+i);                    // load 4 elements
-*            temp /= div10;                             // divide each element by 10
-*            temp.store(quotients+i);                   // store 4 elements
-*        }
-* 
-* The parameters for fast division can also be computed at compile time. This is
-* an advantage if the divisor is known at compile time. Use the const_int or const_uint
-* macro to do this. For example, for signed integers:
-*        Vec8s a, b;
-*        a = b / const_int(10);
-* Or, for unsigned integers:
-*        Vec8us a, b;
-*        a = b / const_uint(10);
-*
-* The division of a vector of 16-bit integers is faster than division of a vector 
-* of other integer sizes.
-*
-* 
-* Mathematical formula, used for signed division with fixed or variable divisor:
-* (From T. Granlund and P. L. Montgomery: Division by Invariant Integers Using Multiplication,
-* Proceedings of the SIGPLAN 1994 Conference on Programming Language Design and Implementation.
-* http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.1.2556 )
-* x = dividend
-* d = abs(divisor)
-* w = integer word size, bits
-* L = ceil(log2(d)) = bit_scan_reverse(d-1)+1
-* L = max(L,1)
-* m = 1 + 2^(w+L-1)/d - 2^w                      [division should overflow to 0 if d = 1]
-* sh1 = L-1
-* q = x + (m*x >> w)                             [high part of signed multiplication with 2w bits]
-* q = (q >> sh1) - (x<0 ? -1 : 0)
-* if (divisor < 0) q = -q 
-* result trunc(x/d) = q
-*
-* Mathematical formula, used for unsigned division with variable divisor:
-* (Also from T. Granlund and P. L. Montgomery)
-* x = dividend
-* d = divisor
-* w = integer word size, bits
-* L = ceil(log2(d)) = bit_scan_reverse(d-1)+1
-* m = 1 + 2^w * (2^L-d) / d                      [2^L should overflow to 0 if L = w]
-* sh1 = min(L,1)
-* sh2 = max(L-1,0)
-* t = m*x >> w                                   [high part of unsigned multiplication with 2w bits]
-* result floor(x/d) = (((x-t) >> sh1) + t) >> sh2
-*
-* Mathematical formula, used for unsigned division with fixed divisor:
-* (From Terje Mathisen, unpublished)
-* x = dividend
-* d = divisor
-* w = integer word size, bits
-* b = floor(log2(d)) = bit_scan_reverse(d)
-* f = 2^(w+b) / d                                [exact division]
-* If f is an integer then d is a power of 2 then go to case A
-* If the fractional part of f is < 0.5 then go to case B
-* If the fractional part of f is > 0.5 then go to case C
-* Case A:  [shift only]
-* result = x >> b
-* Case B:  [round down f and compensate by adding one to x]
-* result = ((x+1)*floor(f)) >> (w+b)             [high part of unsigned multiplication with 2w bits]
-* Case C:  [round up f, no compensation for rounding error]
-* result = (x*ceil(f)) >> (w+b)                  [high part of unsigned multiplication with 2w bits]
-*
-*
-*****************************************************************************/
-
-// encapsulate parameters for fast division on vector of 4 32-bit signed integers
-class Divisor_i {
-protected:
-    __m128i multiplier;                                    // multiplier used in fast division
-    __m128i shift1;                                        // shift count used in fast division
-    __m128i sign;                                          // sign of divisor
-public:
-    Divisor_i() {};                                        // Default constructor
-    Divisor_i(int32_t d) {                                 // Constructor with divisor
-        set(d);
-    }
-    Divisor_i(int m, int s1, int sgn) {                    // Constructor with precalculated multiplier, shift and sign
-        multiplier = _mm_set1_epi32(m);
-        shift1     = _mm_cvtsi32_si128(s1);
-        sign       = _mm_set1_epi32(sgn);
-    }
-    void set(int32_t d) {                                  // Set or change divisor, calculate parameters
-        const int32_t d1 = ::abs(d);
-        int32_t sh, m;
-        if (d1 > 1) {
-            sh = bit_scan_reverse(d1-1);                   // shift count = ceil(log2(d1))-1 = (bit_scan_reverse(d1-1)+1)-1
-            m = int32_t((int64_t(1) << (32+sh)) / d1 - ((int64_t(1) << 32) - 1)); // calculate multiplier
-        }
-        else {
-            m  = 1;                                        // for d1 = 1
-            sh = 0;
-            if (d == 0) m /= d;                            // provoke error here if d = 0
-            if (uint32_t(d) == 0x80000000u) {              // fix overflow for this special case
-                m  = 0x80000001;
-                sh = 30;
-            }
-        }
-        multiplier = _mm_set1_epi32(m);                    // broadcast multiplier
-        shift1     = _mm_setr_epi32(sh, 0, 0, 0);          // shift count
-        sign       = _mm_set1_epi32(d < 0 ? -1 : 0);       // sign of divisor
-    }
-    __m128i getm() const {                                 // get multiplier
-        return multiplier;
-    }
-    __m128i gets1() const {                                // get shift count
-        return shift1;
-    }
-    __m128i getsign() const {                              // get sign of divisor
-        return sign;
-    }
-};
-
-// encapsulate parameters for fast division on vector of 4 32-bit unsigned integers
-class Divisor_ui {
-protected:
-    __m128i multiplier;                                    // multiplier used in fast division
-    __m128i shift1;                                        // shift count 1 used in fast division
-    __m128i shift2;                                        // shift count 2 used in fast division
-public:
-    Divisor_ui() {};                                       // Default constructor
-    Divisor_ui(uint32_t d) {                               // Constructor with divisor
-        set(d);
-    }
-    Divisor_ui(uint32_t m, int s1, int s2) {               // Constructor with precalculated multiplier and shifts
-        multiplier = _mm_set1_epi32(m);
-        shift1     = _mm_setr_epi32(s1, 0, 0, 0);
-        shift2     = _mm_setr_epi32(s2, 0, 0, 0);
-    }
-    void set(uint32_t d) {                                 // Set or change divisor, calculate parameters
-        uint32_t L, L2, sh1, sh2, m;
-        switch (d) {
-        case 0:
-            m = sh1 = sh2 = 1 / d;                         // provoke error for d = 0
-            break;
-        case 1:
-            m = 1; sh1 = sh2 = 0;                          // parameters for d = 1
-            break;
-        case 2:
-            m = 1; sh1 = 1; sh2 = 0;                       // parameters for d = 2
-            break;
-        default:                                           // general case for d > 2
-            L  = bit_scan_reverse(d-1)+1;                  // ceil(log2(d))
-            L2 = L < 32 ? 1 << L : 0;                      // 2^L, overflow to 0 if L = 32
-            m  = 1 + uint32_t((uint64_t(L2 - d) << 32) / d); // multiplier
-            sh1 = 1;  sh2 = L - 1;                         // shift counts
-        }
-        multiplier = _mm_set1_epi32(m);
-        shift1     = _mm_setr_epi32(sh1, 0, 0, 0);
-        shift2     = _mm_setr_epi32(sh2, 0, 0, 0);
-    }
-    __m128i getm() const {                                 // get multiplier
-        return multiplier;
-    }
-    __m128i gets1() const {                                // get shift count 1
-        return shift1;
-    }
-    __m128i gets2() const {                                // get shift count 2
-        return shift2;
-    }
-};
-
-
-// encapsulate parameters for fast division on vector of 8 16-bit signed integers
-class Divisor_s {
-protected:
-    __m128i multiplier;                                    // multiplier used in fast division
-    __m128i shift1;                                        // shift count used in fast division
-    __m128i sign;                                          // sign of divisor
-public:
-    Divisor_s() {};                                        // Default constructor
-    Divisor_s(int16_t d) {                                 // Constructor with divisor
-        set(d);
-    }
-    Divisor_s(int16_t m, int s1, int sgn) {                // Constructor with precalculated multiplier, shift and sign
-        multiplier = _mm_set1_epi16(m);
-        shift1     = _mm_setr_epi32(s1, 0, 0, 0);
-        sign       = _mm_set1_epi32(sgn);
-    }
-    void set(int16_t d) {                                  // Set or change divisor, calculate parameters
-        const int32_t d1 = ::abs(d);
-        int32_t sh, m;
-        if (d1 > 1) {
-            sh = bit_scan_reverse(d1-1);                   // shift count = ceil(log2(d1))-1 = (bit_scan_reverse(d1-1)+1)-1
-            m = ((int32_t(1) << (16+sh)) / d1 - ((int32_t(1) << 16) - 1)); // calculate multiplier
-        }
-        else {
-            m  = 1;                                        // for d1 = 1
-            sh = 0;
-            if (d == 0) m /= d;                            // provoke error here if d = 0
-            if (uint16_t(d) == 0x8000u) {                  // fix overflow for this special case
-                m  = 0x8001;
-                sh = 14;
-            }
-        }
-        multiplier = _mm_set1_epi16(int16_t(m));           // broadcast multiplier
-        shift1     = _mm_setr_epi32(sh, 0, 0, 0);          // shift count
-        sign       = _mm_set1_epi32(d < 0 ? -1 : 0);       // sign of divisor
-    }
-    __m128i getm() const {                                 // get multiplier
-        return multiplier;
-    }
-    __m128i gets1() const {                                // get shift count
-        return shift1;
-    }
-    __m128i getsign() const {                              // get sign of divisor
-        return sign;
-    }
-};
-
-
-// encapsulate parameters for fast division on vector of 8 16-bit unsigned integers
-class Divisor_us {
-protected:
-    __m128i multiplier;                                    // multiplier used in fast division
-    __m128i shift1;                                        // shift count 1 used in fast division
-    __m128i shift2;                                        // shift count 2 used in fast division
-public:
-    Divisor_us() {};                                       // Default constructor
-    Divisor_us(uint16_t d) {                               // Constructor with divisor
-        set(d);
-    }
-    Divisor_us(uint16_t m, int s1, int s2) {               // Constructor with precalculated multiplier and shifts
-        multiplier = _mm_set1_epi16(m);
-        shift1     = _mm_setr_epi32(s1, 0, 0, 0);
-        shift2     = _mm_setr_epi32(s2, 0, 0, 0);
-    }
-    void set(uint16_t d) {                                 // Set or change divisor, calculate parameters
-        uint16_t L, L2, sh1, sh2, m;
-        switch (d) {
-        case 0:
-            m = sh1 = sh2 = 1 / d;                         // provoke error for d = 0
-            break;
-        case 1:
-            m = 1; sh1 = sh2 = 0;                          // parameters for d = 1
-            break;
-        case 2:
-            m = 1; sh1 = 1; sh2 = 0;                       // parameters for d = 2
-            break;
-        default:                                           // general case for d > 2
-            L  = (uint16_t)bit_scan_reverse(d-1)+1;        // ceil(log2(d))
-            L2 = uint16_t(1 << L);                         // 2^L, overflow to 0 if L = 16
-            m  = 1 + uint16_t((uint32_t(L2 - d) << 16) / d); // multiplier
-            sh1 = 1;  sh2 = L - 1;                         // shift counts
-        }
-        multiplier = _mm_set1_epi16(m);
-        shift1     = _mm_setr_epi32(sh1, 0, 0, 0);
-        shift2     = _mm_setr_epi32(sh2, 0, 0, 0);
-    }
-    __m128i getm() const {                                 // get multiplier
-        return multiplier;
-    }
-    __m128i gets1() const {                                // get shift count 1
-        return shift1;
-    }
-    __m128i gets2() const {                                // get shift count 2
-        return shift2;
-    }
-};
-
+*/
 
 // vector operator / : divide each element by divisor
 
 // vector of 4 32-bit signed integers
-static inline Vec4i operator / (Vec4i const & a, Divisor_i const & d) {
-#if defined (__XOP__) && defined (GCC_VERSION) && GCC_VERSION <= 40702/*??*/ && !defined(__INTEL_COMPILER) && !defined(__clang__)
-#define XOP_MUL_BUG                                       // GCC has bug in XOP multiply
-// Bug found in GCC version 4.7.0 and 4.7.1
-#endif
-// todo: test this when GCC bug is fixed
-#if defined (__XOP__) && !defined (XOP_MUL_BUG)
-    __m128i t1  = _mm_mul_epi32(a,d.getm());               // 32x32->64 bit signed multiplication of a[0] and a[2]
-    __m128i t2  = _mm_srli_epi64(t1,32);                   // high dword of result 0 and 2
-    __m128i t3  = _mm_macchi_epi32(a,d.getm(),_mm_setzero_si128());// 32x32->64 bit signed multiplication of a[1] and a[3]
-    __m128i t5  = _mm_set_epi32(-1,0,-1,0);                // mask of dword 1 and 3
-    __m128i t7  = _mm_blendv_epi8(t2,t3,t5);               // blend two results
-    __m128i t8  = _mm_add_epi32(t7,a);                     // add
-    __m128i t9  = _mm_sra_epi32(t8,d.gets1());             // shift right arithmetic
-    __m128i t10 = _mm_srai_epi32(a,31);                    // sign of a
-    __m128i t11 = _mm_sub_epi32(t10,d.getsign());          // sign of a - sign of d
-    __m128i t12 = _mm_sub_epi32(t9,t11);                   // + 1 if a < 0, -1 if d < 0
-    return        _mm_xor_si128(t12,d.getsign());          // change sign if divisor negative
-
-#elif INSTRSET >= 5 && !defined (XOP_MUL_BUG)  // SSE4.1 supported 
-    __m128i t1  = _mm_mul_epi32(a,d.getm());               // 32x32->64 bit signed multiplication of a[0] and a[2]
-    __m128i t2  = _mm_srli_epi64(t1,32);                   // high dword of result 0 and 2
-    __m128i t3  = _mm_srli_epi64(a,32);                    // get a[1] and a[3] into position for multiplication
-    __m128i t4  = _mm_mul_epi32(t3,d.getm());              // 32x32->64 bit signed multiplication of a[1] and a[3]
-    __m128i t5  = _mm_set_epi32(-1,0,-1,0);                // mask of dword 1 and 3
-    __m128i t7  = _mm_blendv_epi8(t2,t4,t5);               // blend two results
-    __m128i t8  = _mm_add_epi32(t7,a);                     // add
-    __m128i t9  = _mm_sra_epi32(t8,d.gets1());             // shift right arithmetic
-    __m128i t10 = _mm_srai_epi32(a,31);                    // sign of a
-    __m128i t11 = _mm_sub_epi32(t10,d.getsign());          // sign of a - sign of d
-    __m128i t12 = _mm_sub_epi32(t9,t11);                   // + 1 if a < 0, -1 if d < 0
-    return        _mm_xor_si128(t12,d.getsign());          // change sign if divisor negative
-#else  // not SSE4.1
-    __m128i t1  = _mm_mul_epu32(a,d.getm());               // 32x32->64 bit unsigned multiplication of a[0] and a[2]
-    __m128i t2  = _mm_srli_epi64(t1,32);                   // high dword of result 0 and 2
-    __m128i t3  = _mm_srli_epi64(a,32);                    // get a[1] and a[3] into position for multiplication
-    __m128i t4  = _mm_mul_epu32(t3,d.getm());              // 32x32->64 bit unsigned multiplication of a[1] and a[3]
-    __m128i t5  = _mm_set_epi32(-1,0,-1,0);                // mask of dword 1 and 3
-    __m128i t6  = _mm_and_si128(t4,t5);                    // high dword of result 1 and 3
-    __m128i t7  = _mm_or_si128(t2,t6);                     // combine all four results of unsigned high mul into one vector
-    // convert unsigned to signed high multiplication (from: H S Warren: Hacker's delight, 2003, p. 132)
-    __m128i u1  = _mm_srai_epi32(a,31);                    // sign of a
-    __m128i u2  = _mm_srai_epi32(d.getm(),31);             // sign of m [ m is always negative, except for abs(d) = 1 ]
-    __m128i u3  = _mm_and_si128 (d.getm(),u1);             // m * sign of a
-    __m128i u4  = _mm_and_si128 (a,u2);                    // a * sign of m
-    __m128i u5  = _mm_add_epi32 (u3,u4);                   // sum of sign corrections
-    __m128i u6  = _mm_sub_epi32 (t7,u5);                   // high multiplication result converted to signed
-    __m128i t8  = _mm_add_epi32(u6,a);                     // add a
-    __m128i t9  = _mm_sra_epi32(t8,d.gets1());             // shift right arithmetic
-    __m128i t10 = _mm_sub_epi32(u1,d.getsign());           // sign of a - sign of d
-    __m128i t11 = _mm_sub_epi32(t9,t10);                   // + 1 if a < 0, -1 if d < 0
-    return        _mm_xor_si128(t11,d.getsign());          // change sign if divisor negative
-#endif
+static inline Vec4i operator / (Vec4i const & a, Vec4i const & d) {
+    return nsimd::div(a, d);
 }
 
 // vector of 4 32-bit unsigned integers
-static inline Vec4ui operator / (Vec4ui const & a, Divisor_ui const & d) {
-    __m128i t1  = _mm_mul_epu32(a,d.getm());               // 32x32->64 bit unsigned multiplication of a[0] and a[2]
-    __m128i t2  = _mm_srli_epi64(t1,32);                   // high dword of result 0 and 2
-    __m128i t3  = _mm_srli_epi64(a,32);                    // get a[1] and a[3] into position for multiplication
-    __m128i t4  = _mm_mul_epu32(t3,d.getm());              // 32x32->64 bit unsigned multiplication of a[1] and a[3]
-    __m128i t5  = _mm_set_epi32(-1,0,-1,0);                // mask of dword 1 and 3
-#if INSTRSET >= 5   // SSE4.1 supported
-    __m128i t7  = _mm_blendv_epi8(t2,t4,t5);               // blend two results
-#else
-    __m128i t6  = _mm_and_si128(t4,t5);                    // high dword of result 1 and 3
-    __m128i t7  = _mm_or_si128(t2,t6);                     // combine all four results into one vector
-#endif
-    __m128i t8  = _mm_sub_epi32(a,t7);                     // subtract
-    __m128i t9  = _mm_srl_epi32(t8,d.gets1());             // shift right logical
-    __m128i t10 = _mm_add_epi32(t7,t9);                    // add
-    return        _mm_srl_epi32(t10,d.gets2());            // shift right logical 
+static inline Vec4ui operator / (Vec4ui const & a, Vec4ui const & d) {
+    return nsimd::div(a, d);
 }
 
 // vector of 8 16-bit signed integers
-static inline Vec8s operator / (Vec8s const & a, Divisor_s const & d) {
-    __m128i t1  = _mm_mulhi_epi16(a, d.getm());            // multiply high signed words
-    __m128i t2  = _mm_add_epi16(t1,a);                     // + a
-    __m128i t3  = _mm_sra_epi16(t2,d.gets1());             // shift right arithmetic
-    __m128i t4  = _mm_srai_epi16(a,15);                    // sign of a
-    __m128i t5  = _mm_sub_epi16(t4,d.getsign());           // sign of a - sign of d
-    __m128i t6  = _mm_sub_epi16(t3,t5);                    // + 1 if a < 0, -1 if d < 0
-    return        _mm_xor_si128(t6,d.getsign());           // change sign if divisor negative
+static inline Vec8s operator / (Vec8s const & a, Vec8s const & d) {
+    return nsimd::div(a, d);
 }
 
 // vector of 8 16-bit unsigned integers
-static inline Vec8us operator / (Vec8us const & a, Divisor_us const & d) {
-    __m128i t1  = _mm_mulhi_epu16(a, d.getm());            // multiply high unsigned words
-    __m128i t2  = _mm_sub_epi16(a,t1);                     // subtract
-    __m128i t3  = _mm_srl_epi16(t2,d.gets1());             // shift right logical
-    __m128i t4  = _mm_add_epi16(t1,t3);                    // add
-    return        _mm_srl_epi16(t4,d.gets2());             // shift right logical 
+static inline Vec8us operator / (Vec8us const & a, Vec8us const & d) {
+    return nsimd::div(a, d);
 }
-
  
 // vector of 16 8-bit signed integers
-static inline Vec16c operator / (Vec16c const & a, Divisor_s const & d) {
-    // expand into two Vec8s
-    Vec8s low  = extend_low(a)  / d;
-    Vec8s high = extend_high(a) / d;
-    return compress(low,high);
+static inline Vec16c operator / (Vec16c const & a, Vec16c const & d) {
+    return nsimd::div(a, d);
 }
 
 // vector of 16 8-bit unsigned integers
-static inline Vec16uc operator / (Vec16uc const & a, Divisor_us const & d) {
-    // expand into two Vec8s
-    Vec8us low  = extend_low(a)  / d;
-    Vec8us high = extend_high(a) / d;
-    return compress(low,high);
+static inline Vec16uc operator / (Vec16uc const & a, Vec16uc const & d) {
+    return nsimd::div(a, d);
 }
 
 // vector operator /= : divide
-static inline Vec8s & operator /= (Vec8s & a, Divisor_s const & d) {
+static inline Vec8s & operator /= (Vec8s & a, Vec8s const & d) {
     a = a / d;
     return a;
 }
 
 // vector operator /= : divide
-static inline Vec8us & operator /= (Vec8us & a, Divisor_us const & d) {
+static inline Vec8us & operator /= (Vec8us & a, Vec8us const & d) {
     a = a / d;
     return a;
 }
 
 // vector operator /= : divide
-static inline Vec4i & operator /= (Vec4i & a, Divisor_i const & d) {
+static inline Vec4i & operator /= (Vec4i & a, Vec4i const & d) {
     a = a / d;
     return a;
 }
 
 // vector operator /= : divide
-static inline Vec4ui & operator /= (Vec4ui & a, Divisor_ui const & d) {
+static inline Vec4ui & operator /= (Vec4ui & a, Vec4ui const & d) {
     a = a / d;
     return a;
 }
 
 // vector operator /= : divide
-static inline Vec16c & operator /= (Vec16c & a, Divisor_s const & d) {
+static inline Vec16c & operator /= (Vec16c & a, Vec16c const & d) {
     a = a / d;
     return a;
 }
 
 // vector operator /= : divide
-static inline Vec16uc & operator /= (Vec16uc & a, Divisor_us const & d) {
+static inline Vec16uc & operator /= (Vec16uc & a, Vec16uc const & d) {
     a = a / d;
     return a;
 }
@@ -5365,23 +4704,8 @@ static inline Vec4i divide_by_i(Vec4i const & x) {
     if (d ==  1) return  x;
     if (d == -1) return -x;
     if (uint32_t(d) == 0x80000000u) return Vec4i(x == Vec4i(0x80000000)) & 1; // prevent overflow when changing sign
-    const uint32_t d1 = d > 0 ? uint32_t(d) : uint32_t(-d);          // compile-time abs(d). (force GCC compiler to treat d as 32 bits, not 64 bits)
-    if ((d1 & (d1-1)) == 0) {
-        // d1 is a power of 2. use shift
-        const int k = bit_scan_reverse_const(d1);
-        __m128i sign;
-        if (k > 1) sign = _mm_srai_epi32(x, k-1); else sign = x;     // k copies of sign bit
-        __m128i bias    = _mm_srli_epi32(sign, 32-k);                // bias = x >= 0 ? 0 : k-1
-        __m128i xpbias  = _mm_add_epi32 (x, bias);                   // x + bias
-        __m128i q       = _mm_srai_epi32(xpbias, k);                 // (x + bias) >> k
-        if (d > 0)      return q;                                    // d > 0: return  q
-        return _mm_sub_epi32(_mm_setzero_si128(), q);                // d < 0: return -q
-    }
-    // general case
-    const int32_t sh = bit_scan_reverse_const(uint32_t(d1)-1);            // ceil(log2(d1)) - 1. (d1 < 2 handled by power of 2 case)
-    const int32_t mult = int(1 + (uint64_t(1) << (32+sh)) / uint32_t(d1) - (int64_t(1) << 32));   // multiplier
-    const Divisor_i div(mult, sh, d < 0 ? -1 : 0);
-    return x / div;
+    pack128_4i_t div = nsimd::set1<pack128_4i_t>(d);
+    return nsimd::div(x, div); 
 }
 
 // define Vec4i a / const_int(d)
@@ -5416,40 +4740,9 @@ static inline Vec4i & operator /= (Vec4i & a, Const_uint_t<d> b) {
 template <uint32_t d>
 static inline Vec4ui divide_by_ui(Vec4ui const & x) {
     Static_error_check<(d!=0)> Dividing_by_zero;                     // Error message if dividing by zero
-    if (d == 1) return x;                                            // divide by 1
-    const int b = bit_scan_reverse_const(d);                         // floor(log2(d))
-    if ((uint32_t(d) & (uint32_t(d)-1)) == 0) {
-        // d is a power of 2. use shift
-        return    _mm_srli_epi32(x, b);                              // x >> b
-    }
-    // general case (d > 2)
-    uint32_t mult = uint32_t((uint64_t(1) << (b+32)) / d);           // multiplier = 2^(32+b) / d
-    const uint64_t rem = (uint64_t(1) << (b+32)) - uint64_t(d)*mult; // remainder 2^(32+b) % d
-    const bool round_down = (2*rem < d);                             // check if fraction is less than 0.5
-    if (!round_down) {
-        mult = mult + 1;                                             // round up mult
-    }
-    // do 32*32->64 bit unsigned multiplication and get high part of result
-    const __m128i multv = _mm_set_epi32(0,mult,0,mult);              // zero-extend mult and broadcast
-    __m128i t1  = _mm_mul_epu32(x,multv);                            // 32x32->64 bit unsigned multiplication of x[0] and x[2]
-    if (round_down) {
-        t1      = _mm_add_epi64(t1,multv);                           // compensate for rounding error. (x+1)*m replaced by x*m+m to avoid overflow
-    }
-    __m128i t2  = _mm_srli_epi64(t1,32);                             // high dword of result 0 and 2
-    __m128i t3  = _mm_srli_epi64(x,32);                              // get x[1] and x[3] into position for multiplication
-    __m128i t4  = _mm_mul_epu32(t3,multv);                           // 32x32->64 bit unsigned multiplication of x[1] and x[3]
-    if (round_down) {
-        t4      = _mm_add_epi64(t4,multv);                           // compensate for rounding error. (x+1)*m replaced by x*m+m to avoid overflow
-    }
-    __m128i t5  = _mm_set_epi32(-1,0,-1,0);                          // mask of dword 1 and 3
-#if INSTRSET >= 5   // SSE4.1 supported
-    __m128i t7  = _mm_blendv_epi8(t2,t4,t5);                         // blend two results
-#else
-    __m128i t6  = _mm_and_si128(t4,t5);                              // high dword of result 1 and 3
-    __m128i t7  = _mm_or_si128(t2,t6);                               // combine all four results into one vector
-#endif
-    Vec4ui q    = _mm_srli_epi32(t7, b);                             // shift right by b
-    return q;                                                    // no overflow possible
+    if (d == 1) return x;                                            // divide by 18_16i_t>(d0);
+    pack128_4ui_t div = nsimd::set1<pack128_4ui_t>(d);
+    return nsimd::div(x, div);                                       
 }
 
 // define Vec4ui a / const_uint(d)
@@ -5488,25 +4781,8 @@ static inline Vec8s divide_by_i(Vec8s const & x) {
     if (d0 ==  1) return  x;                                         // divide by  1
     if (d0 == -1) return -x;                                         // divide by -1
     if (uint16_t(d0) == 0x8000u) return Vec8s(x == Vec8s(0x8000)) & 1;// prevent overflow when changing sign
-    // if (d > 0x7FFF || d < -0x8000) return 0;                      // not relevant when d truncated to 16 bits
-    const uint16_t d1 = d0 > 0 ? d0 : -d0;                           // compile-time abs(d0)
-    if ((d1 & (d1-1)) == 0) {
-        // d is a power of 2. use shift
-        const int k = bit_scan_reverse_const(uint32_t(d1));
-        __m128i sign;
-        if (k > 1) sign = _mm_srai_epi16(x, k-1); else sign = x;     // k copies of sign bit
-        __m128i bias    = _mm_srli_epi16(sign, 16-k);                // bias = x >= 0 ? 0 : k-1
-        __m128i xpbias  = _mm_add_epi16 (x, bias);                   // x + bias
-        __m128i q       = _mm_srai_epi16(xpbias, k);                 // (x + bias) >> k
-        if (d0 > 0)  return q;                                       // d0 > 0: return  q
-        return _mm_sub_epi16(_mm_setzero_si128(), q);                // d0 < 0: return -q
-    }
-    // general case
-    const int L = bit_scan_reverse_const(uint16_t(d1-1)) + 1;        // ceil(log2(d)). (d < 2 handled above)
-    const int16_t mult = int16_t(1 + (1u << (15+L)) / uint32_t(d1) - 0x10000);// multiplier
-    const int shift1 = L - 1;
-    const Divisor_s div(mult, shift1, d0 > 0 ? 0 : -1);
-    return x / div;
+    pack128_8i_t div = nsimd::set1<pack128_8i_t>(d0);
+    return nsimd::div(x, div);
 }
 
 // define Vec8s a / const_int(d)
@@ -5543,32 +4819,8 @@ static inline Vec8us divide_by_ui(Vec8us const & x) {
     const uint16_t d0 = uint16_t(d);                                 // truncate d to 16 bits
     Static_error_check<(d0 != 0)> Dividing_by_zero;                  // Error message if dividing by zero
     if (d0 == 1) return x;                                           // divide by 1
-    const int b = bit_scan_reverse_const(d0);                        // floor(log2(d))
-    if ((d0 & (d0-1)) == 0) {
-        // d is a power of 2. use shift
-        return  _mm_srli_epi16(x, b);                                // x >> b
-    }
-    // general case (d > 2)
-    uint16_t mult = uint16_t((uint32_t(1) << (b+16)) / d0);          // multiplier = 2^(32+b) / d
-    const uint32_t rem = (uint32_t(1) << (b+16)) - uint32_t(d0)*mult;// remainder 2^(32+b) % d
-    const bool round_down = (2*rem < d0);                            // check if fraction is less than 0.5
-    Vec8us x1 = x;
-    if (round_down) {
-        x1 = x1 + 1;                                                 // round down mult and compensate by adding 1 to x
-    }
-    else {
-        mult = mult + 1;                                             // round up mult. no compensation needed
-    }
-    const __m128i multv = _mm_set1_epi16(mult);                      // broadcast mult
-    __m128i xm = _mm_mulhi_epu16(x1, multv);                         // high part of 16x16->32 bit unsigned multiplication
-    Vec8us q    = _mm_srli_epi16(xm, b);                             // shift right by b
-    if (round_down) {
-        Vec8sb overfl = (x1 == (Vec8us)_mm_setzero_si128());         // check for overflow of x+1
-        return select(overfl, Vec8us(mult >> b), q);                 // deal with overflow (rarely needed)
-    }
-    else {
-        return q;                                                    // no overflow possible
-    }
+    pack128_8ui_t div = nsimd::set1<pack128_8ui_t>(d0);
+    return nsimd::div(x, div);
 }
 
 // define Vec8us a / const_uint(d)
@@ -5602,10 +4854,11 @@ static inline Vec8us & operator /= (Vec8us & a, Const_int_t<d> b) {
 // define Vec16c a / const_int(d)
 template <int d>
 static inline Vec16c operator / (Vec16c const & a, Const_int_t<d>) {
-    // expand into two Vec8s
-    Vec8s low  = extend_low(a)  / Const_int_t<d>();
-    Vec8s high = extend_high(a) / Const_int_t<d>();
-    return compress(low,high);
+    const uint8_t d0 = uint8_t(d);                                 // truncate d to 16 bits
+    Static_error_check<(d0 != 0)> Dividing_by_zero;                  // Error message if dividing by zero
+    if (d0 == 1) return x;                                           // divide by 1
+    pack128_16i_t div = nsimd::set1<pack128_16i_t>(d0);
+    return nsimd::div(x, div);
 }
 
 // define Vec16c a / const_uint(d)
@@ -5631,10 +4884,11 @@ static inline Vec16c & operator /= (Vec16c & a, Const_uint_t<d> b) {
 // define Vec16uc a / const_uint(d)
 template <uint32_t d>
 static inline Vec16uc operator / (Vec16uc const & a, Const_uint_t<d>) {
-    // expand into two Vec8usc
-    Vec8us low  = extend_low(a)  / Const_uint_t<d>();
-    Vec8us high = extend_high(a) / Const_uint_t<d>();
-    return compress(low,high);
+    const uint8_t d0 = uint8_t(d);                                 // truncate d to 16 bits
+    Static_error_check<(d0 != 0)> Dividing_by_zero;                  // Error message if dividing by zero
+    if (d0 == 1) return x;                                           // divide by 1
+    pack128_16ui_t div = nsimd::set1<pack128_16ui_t>(d0);
+    return nsimd::div(x, div);
 }
 
 // define Vec16uc a / const_int(d)
@@ -5666,40 +4920,36 @@ static inline Vec16uc & operator /= (Vec16uc & a, Const_int_t<d> b) {
 
 // Get index to the first element that is true. Return -1 if all are false
 static inline int horizontal_find_first(Vec16cb const & x) {
-    uint32_t a = _mm_movemask_epi8(x);
-    if (a == 0) return -1;
-    int32_t b = bit_scan_forward(a);
-    return b;
+    return nsimd_common::horizontal_find_first(x);
 }
 
 static inline int horizontal_find_first(Vec8sb const & x) {
-    return horizontal_find_first(Vec16cb(x)) >> 1;   // must use signed shift
+    return nsimd_common::horizontal_find_first(x);
 }
 
 static inline int horizontal_find_first(Vec4ib const & x) {
-    return horizontal_find_first(Vec16cb(x)) >> 2;   // must use signed shift
+    return nsimd_common::horizontal_find_first(x);
 }
 
 static inline int horizontal_find_first(Vec2qb const & x) {
-    return horizontal_find_first(Vec16cb(x)) >> 3;   // must use signed shift
+    return nsimd_common::horizontal_find_first(x);
 }
 
 // Count the number of elements that are true
 static inline uint32_t horizontal_count(Vec16cb const & x) {
-    uint32_t a = _mm_movemask_epi8(x);
-    return vml_popcnt(a);
+    return nsind::nbtrue(x);
 }
 
 static inline uint32_t horizontal_count(Vec8sb const & x) {
-    return horizontal_count(Vec16cb(x)) >> 1;
+    return nsind::nbtrue(x);
 }
 
 static inline uint32_t horizontal_count(Vec4ib const & x) {
-    return horizontal_count(Vec16cb(x)) >> 2;
+    return nsind::nbtrue(x);
 }
 
 static inline uint32_t horizontal_count(Vec2qb const & x) {
-    return horizontal_count(Vec16cb(x)) >> 3;
+    return nsind::nbtrue(x);
 }
 
 

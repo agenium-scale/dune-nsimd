@@ -416,39 +416,39 @@ static inline nsimd::pack<T> gather8(void * array)
 }
 
 //------------------------ BLEND -------------------------
-template <int i0, int i1, typename T>
-nsimd::pack<T> blend2(nsimd::pack<T> const &v1, nsimd::pack<T> const &v2) {
+template <int i0, int i1, typename PackT, typename T>
+PackT blend2(PackT const &v1, PackT const &v2) {
     int max_len = 2;
     T buf[2 * max_len];
     T res[max_len];
     nsimd::storeu(buf, v1);
-    nsimd::storeu(buf + nsimd::len(nsimd::pack<T>()), v2);
+    nsimd::storeu(buf + nsimd::len(v1), v2);
     res[0] = (i0 >= 0 && i0 < 2*max_len ? buf[i0] : T(0));
     res[1] = (i1 >= 0 && i1 < 2*max_len ? buf[i1] : T(0));
-    return nsimd::loadu<nsimd::pack<T> >(res);
+    return nsimd::loadu<PackT>(res);
 }
 
-template <int i0, int i1, int i2, int i3, typename T>
-nsimd::pack<T> blend4(nsimd::pack<T> const &v1, nsimd::pack<T> const &v2) {
+template <int i0, int i1, int i2, int i3, typename PackT, typename T>
+PackT blend4(PackT const &v1, PackT const &v2) {
     int max_len = 4;
     T buf[2 * max_len];
     T res[max_len];
     nsimd::storeu(buf, v1);
-    nsimd::storeu(buf + nsimd::len(nsimd::pack<T>()), v2);
+    nsimd::storeu(buf + nsimd::len(v1), v2);
     res[0] = (i0 >= 0 && i0 < 2*max_len ? buf[i0] : T(0));
     res[1] = (i1 >= 0 && i1 < 2*max_len ? buf[i1] : T(0));
     res[2] = (i2 >= 0 && i2 < 2*max_len ? buf[i2] : T(0));
     res[3] = (i3 >= 0 && i3 < 2*max_len ? buf[i3] : T(0));
-    return nsimd::loadu<nsimd::pack<T> >(res);
+    return nsimd::loadu<PackT>(res);
 }
 
-template <int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, typename T>
-nsimd::pack<T> blend8(nsimd::pack<T> const &v1, nsimd::pack<T> const &v2) {
+template <int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7, typename PackT, typename T>
+PackT blend8(PackT const &v1, PackT const &v2) {
     int max_len = 8;
     T buf[2 * max_len];
     T res[max_len];
     nsimd::storeu(buf, v1);
-    nsimd::storeu(buf + nsimd::len(nsimd::pack<T>()), v2);
+    nsimd::storeu(buf + nsimd::len(v1), v2);
     res[0] = (i0 >= 0 && i0 < 2*max_len ? buf[i0] : T(0));
     res[1] = (i1 >= 0 && i1 < 2*max_len ? buf[i1] : T(0));
     res[2] = (i2 >= 0 && i2 < 2*max_len ? buf[i2] : T(0));
@@ -457,7 +457,35 @@ nsimd::pack<T> blend8(nsimd::pack<T> const &v1, nsimd::pack<T> const &v2) {
     res[5] = (i5 >= 0 && i5 < 2*max_len ? buf[i5] : T(0));
     res[6] = (i6 >= 0 && i6 < 2*max_len ? buf[i6] : T(0));
     res[7] = (i7 >= 0 && i7 < 2*max_len ? buf[i7] : T(0));
-    return nsimd::loadu<nsimd::pack<T> >(res);
+    return nsimd::loadu<PackT>(res);
+}
+
+template <int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7,
+    int i8, int i9, int i10, int i11, int i12, int i13, int i14, int i15, typename PackT, typename T>
+PackT blend16(PackT const &v1, PackT const &v2) {
+    int max_len = 16;
+    T buf[2 * max_len];
+    T res[max_len];
+    nsimd::storeu(buf, v1);
+    nsimd::storeu(buf + nsimd::len(v1), v2);
+    res[0] = (i0 >= 0 && i0 < 2*max_len ? buf[i0] : T(0));
+    res[1] = (i1 >= 0 && i1 < 2*max_len ? buf[i1] : T(0));
+    res[2] = (i2 >= 0 && i2 < 2*max_len ? buf[i2] : T(0));
+    res[3] = (i3 >= 0 && i3 < 2*max_len ? buf[i3] : T(0));
+    res[4] = (i4 >= 0 && i4 < 2*max_len ? buf[i4] : T(0));
+    res[5] = (i5 >= 0 && i5 < 2*max_len ? buf[i5] : T(0));
+    res[6] = (i6 >= 0 && i6 < 2*max_len ? buf[i6] : T(0));
+    res[7] = (i7 >= 0 && i7 < 2*max_len ? buf[i7] : T(0));
+
+    res[8] = (i8 >= 0 && i8 < 2*max_len ? buf[i8] : T(0));
+    res[9] = (i9 >= 0 && i9 < 2*max_len ? buf[i9] : T(0));
+    res[10] = (i10 >= 0 && i10 < 2*max_len ? buf[i10] : T(0));
+    res[11] = (i11 >= 0 && i11 < 2*max_len ? buf[i11] : T(0));
+    res[12] = (i12 >= 0 && i12 < 2*max_len ? buf[i12] : T(0));
+    res[13] = (i13 >= 0 && i13 < 2*max_len ? buf[i13] : T(0));
+    res[14] = (i14 >= 0 && i14 < 2*max_len ? buf[i14] : T(0));
+    res[15] = (i15 >= 0 && i15 < 2*max_len ? buf[i15] : T(0));
+    return nsimd::loadu<PackT>(res);
 }
 
 //-------------------------- GET_HIGH/LOW ------------------------------
@@ -482,8 +510,78 @@ static inline PACK_T get_low(PACK_U const & a) {
 //-------------------------- HORIZONTAL_COUNT ------------------------------
 // Count the number of elements that are true
 template <typename T>
-static inline uint32_t horizontal_count(nsimd::pack<T> const & x) {
+static inline uint32_t horizontal_count(T const & x) {
     return nsimd::nbtrue(x);
+}
+
+//-------------------------- HORIZONTAL_FIND_FIRST ------------------------------
+// Get the index of the first element set to true
+template <typename T>
+static inline uint32_t horizontal_find_first(T const & x) {
+    return nsimd::nbtrue(x);
+}
+
+//------------------------ COMPRESS -------------------------
+template <typename PackT, typename T, typename PackU, typename U>
+packT compress4(PackU const & low, PackU const & high, bool is_saturated = false)
+{
+    U low1[2];
+    U high1[2];
+    T res[4];
+    nsimd::storeu(low1, low);
+    nsimd::storeu(high1, high);
+    res[0] = saturate8(low1[0]);
+    res[1] = saturate8(low1[1]);
+    res[2] = saturate8(high1[0]);
+    res[3] = saturate8(high1[1]);
+    return nsimd::loadu<PackT>(res);
+}
+
+template <typename PackT, typename T, typename PackU, typename U>
+PackT compress8(PackU const & low, PackU const & high, bool is_saturated = false)
+{
+    U low1[4];
+    U high1[4];
+    T res[8];
+    nsimd::storeu(low1, low);
+    nsimd::storeu(high1, high);
+    res[0] = saturate16(low1[0]);
+    res[1] = saturate16(low1[1]);
+    res[2] = saturate16(low1[2]);
+    res[3] = saturate16(low1[3]);
+    res[4] = saturate16(high1[0]);
+    res[5] = saturate16(high1[1]);
+    res[6] = saturate16(high1[2]);
+    res[7] = saturate16(high1[3]);
+    return nsimd::loadu<PackT>(res);
+}
+
+template <typename PackT, typename T, typename PackU, typename U>
+PackT compress16(PackU const & low, PackU const & high, bool is_saturated = false)
+{
+    U low1[8];
+    U high1[8];
+    T res[16];
+    nsimd::storeu(low1, low);
+    nsimd::storeu(high1, high);
+    res[0] = saturate32(low1[0]);
+    res[1] = saturate32(low1[1]);
+    res[2] = saturate32(low1[2]);
+    res[3] = saturate32(low1[3]);
+    res[4] = saturate32(low1[4]);
+    res[5] = saturate32(low1[5]);
+    res[6] = saturate32(low1[6]);
+    res[7] = saturate32(low1[7]);
+
+    res[8] = saturate32(high1[0]);
+    res[9] = saturate32(high1[1]);
+    res[10] = saturate32(high1[2]);
+    res[11] = saturate32(high1[3]);
+    res[12] = saturate32(high1[4]);
+    res[13] = saturate32(high1[5]);
+    res[14] = saturate32(high1[6]);
+    res[15] = saturate32(high1[7]);
+    return nsimd::loadu<PackT>(res);
 }
 
 }      // nsimd_common

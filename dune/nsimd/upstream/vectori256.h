@@ -75,85 +75,68 @@ namespace NSIMD_NAMESPACE {
 *          Vector of 256 1-bit unsigned integers or Booleans
 *
 *****************************************************************************/
+template <typename PackT, template T>
 class Vec256b {
 protected:
-    __m256i ymm; // Integer vector
+    PackT ymm; // Integer vector
 public:
     // Default constructor:
     Vec256b() {
     }
     // Constructor to broadcast the same value into all elements
-    // Removed because of undesired implicit conversions
-    //Vec256b(int i) {
-    //    ymm = _mm256_set1_epi32(-(i & 1));}
+    Vec256b(T i) {
+        ymm = nsimd::set1<PackT>(i);
+    }
 
     // Constructor to build from two Vec128b:
     Vec256b(Vec128b const & a0, Vec128b const & a1) {
         ymm = set_m128ir(a0, a1);
     }
-    // Constructor to convert from type __m256i used in intrinsics:
-    Vec256b(__m256i const & x) {
+    // Constructor to convert from type PackT used in intrinsics:
+    Vec256b(PackT const & x) {
         ymm = x;
     }
-    // Assignment operator to convert from type __m256i used in intrinsics:
-    Vec256b & operator = (__m256i const & x) {
+    // Assignment operator to convert from type PackT used in intrinsics:
+    Vec256b & operator = (PackT const & x) {
         ymm = x;
         return *this;
     }
-    // Type cast operator to convert to __m256i used in intrinsics
-    operator __m256i() const {
+    // Type cast operator to convert to PackT used in intrinsics
+    operator PackT() const {
         return ymm;
     }
     // Member function to load from array (unaligned)
     Vec256b & load(void const * p) {
-        ymm = _mm256_loadu_si256((__m256i const*)p);
+        ymm = nsimd::loadu<PackT>((T const*)p);
         return *this;
     }
     // Member function to load from array, aligned by 32
     // You may use load_a instead of load if you are certain that p points to an address
     // divisible by 32, but there is hardly any speed advantage of load_a on modern processors
     Vec256b & load_a(void const * p) {
-        ymm = _mm256_load_si256((__m256i const*)p);
+        ymm = nsimd::loada<PackT>((T const*)p);
         return *this;
     }
     // Member function to store into array (unaligned)
     void store(void * p) const {
-        _mm256_storeu_si256((__m256i*)p, ymm);
+        nsimd::storeu<T>((T*)p, ymm);
     }
     // Member function to store into array, aligned by 32
     // You may use store_a instead of store if you are certain that p points to an address
     // divisible by 32, but there is hardly any speed advantage of load_a on modern processors
     void store_a(void * p) const {
-        _mm256_store_si256((__m256i*)p, ymm);
+        nsimd::storea<T>((T*)p, ymm);
     }
     // Member function to change a single bit
     // Note: This function is inefficient. Use load function if changing more than one bit
     Vec256b const & set_bit(uint32_t index, int value) {
-        static uint64_t m[8] = {0,0,0,0,1,0,0,0};
-        int wi = (index >> 6) & 3;               // qword index
-        int bi = index & 0x3F;                   // bit index within qword w
-
-        __m256i mask = Vec256b().load(m+4-wi);   // 1 in qword number wi
-        mask = _mm256_sll_epi64(mask,_mm_cvtsi32_si128(bi)); // mask with bit number b set
-        if (value & 1) {
-            ymm = _mm256_or_si256(mask,ymm);
-        }
-        else {
-            ymm = _mm256_andnot_si256(mask,ymm);
-        }
+        ymm = nsimd_common::set_bit<PackT, T>(index, value, ymm)
         return *this;
     }
     // Member function to get a single bit
     // Note: This function is inefficient. Use store function if reading more than one bit
     int get_bit(uint32_t index) const {
-        union {
-            __m256i x;
-            uint8_t i[32];
-        } u;
-        u.x = ymm; 
-        int wi = (index >> 3) & 0x1F;            // byte index
-        int bi = index & 7;                      // bit index within byte w
-        return (u.i[wi] >> bi) & 1;
+        return nsimd_common::get_bit<PackT, T>(index, ymm);
     }
     // Extract a single element. Use store function if extracting more than one element.
     // Operator [] can only read an element, not write.
@@ -162,10 +145,10 @@ public:
     }
     // Member functions to split into two Vec128b:
     Vec128b get_low() const {
-        return _mm256_castsi256_si128(ymm);
+        return nsimd_common::get_low<>(ymm);
     }
     Vec128b get_high() const {
-        return _mm256_extractf128_si256(ymm,1);
+        return nsimd_common::get_high<>(ymm);
     }
     static int size() {
         return 256;
@@ -177,7 +160,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec256b operator & (Vec256b const & a, Vec256b const & b) {
-    return _mm256_and_si256(a, b);
+    return nsimd::andb(a, b);
 }
 static inline Vec256b operator && (Vec256b const & a, Vec256b const & b) {
     return a & b;
@@ -185,7 +168,7 @@ static inline Vec256b operator && (Vec256b const & a, Vec256b const & b) {
 
 // vector operator | : bitwise or
 static inline Vec256b operator | (Vec256b const & a, Vec256b const & b) {
-    return _mm256_or_si256(a, b);
+    return nsimd::orb(a, b);
 }
 static inline Vec256b operator || (Vec256b const & a, Vec256b const & b) {
     return a | b;
@@ -193,12 +176,12 @@ static inline Vec256b operator || (Vec256b const & a, Vec256b const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec256b operator ^ (Vec256b const & a, Vec256b const & b) {
-    return _mm256_xor_si256(a, b);
+    return nsimd::xorb(a, b);
 }
 
 // vector operator ~ : bitwise not
 static inline Vec256b operator ~ (Vec256b const & a) {
-    return _mm256_xor_si256(a, _mm256_set1_epi32(-1));
+    return nsimd::notb(a);
 }
 
 // vector operator &= : bitwise and
@@ -223,7 +206,7 @@ static inline Vec256b & operator ^= (Vec256b & a, Vec256b const & b) {
 
 // function andnot: a & ~ b
 static inline Vec256b andnot (Vec256b const & a, Vec256b const & b) {
-    return _mm256_andnot_si256(b, a);
+    return nsimd::andnotb(b, a);
 }
 
 
@@ -235,17 +218,17 @@ static inline Vec256b andnot (Vec256b const & a, Vec256b const & b) {
 // Generate a constant vector of 8 integers stored in memory.
 // Can be converted to any integer vector type
 template <int32_t i0, int32_t i1, int32_t i2, int32_t i3, int32_t i4, int32_t i5, int32_t i6, int32_t i7>
-static inline __m256i constant8i() {
-    static const union {
-        int32_t i[8];
-        __m256i ymm;
-    } u = {{i0,i1,i2,i3,i4,i5,i6,i7}};
-    return u.ymm;
+static inline pack256_8i_t constant8i() {
+    int32_t data[8] = {i0, i1, i2, i3, i4, i5, i6, i7};
+    pack256_8i_t res = nsimd::loadu<pack256_8i_t>(data);
+    return res;
 }
 
 template <uint32_t i0, uint32_t i1, uint32_t i2, uint32_t i3, uint32_t i4, uint32_t i5, uint32_t i6, uint32_t i7>
-static inline __m256i constant8ui() {
-    return constant8i<int32_t(i0), int32_t(i1), int32_t(i2), int32_t(i3), int32_t(i4), int32_t(i5), int32_t(i6), int32_t(i7)>();
+static inline pack256_8ui_t constant8ui() {
+    uint32_t data[8] = {i0, i1, i2, i3, i4, i5, i6, i7};
+    pack256_8ui_t res = nsimd::loadu<pack256_8ui_t>(data);
+    return res;
 }
 
 /*****************************************************************************
@@ -258,8 +241,8 @@ static inline __m256i constant8ui() {
 // for (int i = 0; i < 32; i++) result[i] = s[i] ? a[i] : b[i];
 // Each byte in s must be either 0 (false) or 0xFF (true). No other values are allowed.
 // Only bit 7 in each byte of s is checked, 
-static inline __m256i selectb (__m256i const & s, __m256i const & a, __m256i const & b) {
-    return _mm256_blendv_epi8 (b, a, s);
+static inline pack256_32i_t selectb (pack256_32i_t const & s, pack256_32i_t const & a, pack256_32i_t const & b) {
+    return return nsimd::if_else(nsimd::to_logical(b), a, s);
 }
 
 
@@ -272,12 +255,12 @@ static inline __m256i selectb (__m256i const & s, __m256i const & a, __m256i con
 
 // horizontal_and. Returns true if all bits are 1
 static inline bool horizontal_and (Vec256b const & a) {
-    return _mm256_testc_si256(a,constant8i<-1,-1,-1,-1,-1,-1,-1,-1>()) != 0;
+    return nsimd::all(nsimd::to_logical(a));
 }
 
 // horizontal_or. Returns true if at least one bit is 1
 static inline bool horizontal_or (Vec256b const & a) {
-    return ! _mm256_testz_si256(a,a);
+    return nsimd::any(nsimd::to_logical(a));
 }
 
 
@@ -288,100 +271,71 @@ static inline bool horizontal_or (Vec256b const & a) {
 *
 *****************************************************************************/
 
-class Vec32c : public Vec256b {
+class Vec32c : public Vec256b<pack256_32i_t, int8_t> {
 public:
     // Default constructor:
     Vec32c(){
     }
     // Constructor to broadcast the same value into all elements:
     Vec32c(int i) {
-        ymm = _mm256_set1_epi8((char)i);
+        ymm = nsimd::set1<pack256_32i_t>((char)i);
     }
     // Constructor to build from all elements:
     Vec32c(int8_t i0, int8_t i1, int8_t i2, int8_t i3, int8_t i4, int8_t i5, int8_t i6, int8_t i7,
         int8_t i8, int8_t i9, int8_t i10, int8_t i11, int8_t i12, int8_t i13, int8_t i14, int8_t i15,        
         int8_t i16, int8_t i17, int8_t i18, int8_t i19, int8_t i20, int8_t i21, int8_t i22, int8_t i23,
         int8_t i24, int8_t i25, int8_t i26, int8_t i27, int8_t i28, int8_t i29, int8_t i30, int8_t i31) {
-        ymm = _mm256_setr_epi8(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15,
-            i16, i17, i18, i19, i20, i21, i22, i23, i24, i25, i26, i27, i28, i29, i30, i31);
+        int8_t vec[32] = {
+            i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15,
+            i16, i17, i18, i19, i20, i21, i22, i23, i24, i25, i26, i27, i28, i29, i30, i31
+        };
+        ymm = nsimd::loadu<pack256_32i_t>(vec);
     }
     // Constructor to build from two Vec16c:
     Vec32c(Vec16c const & a0, Vec16c const & a1) {
         ymm = set_m128ir(a0, a1);
     }
     // Constructor to convert from type __m256i used in intrinsics:
-    Vec32c(__m256i const & x) {
+    Vec32c(pack256_32i_t const & x) {
         ymm = x;
     }
     // Assignment operator to convert from type __m256i used in intrinsics:
-    Vec32c & operator = (__m256i const & x) {
+    Vec32c & operator = (pack256_32i_t const & x) {
         ymm = x;
         return *this;
     }
     // Type cast operator to convert to __m256i used in intrinsics
-    operator __m256i() const {
+    operator pack256_32i_t() const {
         return ymm;
     }
     // Member function to load from array (unaligned)
     Vec32c & load(void const * p) {
-        ymm = _mm256_loadu_si256((__m256i const*)p);
+        ymm = nsimd::loadu((int8_t const*)p);
         return *this;
     }
     // Member function to load from array, aligned by 32
     Vec32c & load_a(void const * p) {
-        ymm = _mm256_load_si256((__m256i const*)p);
+        ymm = nsimd::loada((int8_t const*)p);
         return *this;
     }
     // Partial load. Load n elements and set the rest to 0
     Vec32c & load_partial(int n, void const * p) {
-        if (n <= 0) {
-            *this = 0;
-        }
-        else if (n <= 16) {
-            *this = Vec32c(Vec16c().load_partial(n, p), 0);
-        }
-        else if (n < 32) {
-            *this = Vec32c(Vec16c().load(p), Vec16c().load_partial(n-16, (char const*)p+16));
-        }
-        else {
-            load(p);
-        }
+        ymm = nsimd_common::load_partial<pack256_32i_t, packl256_32i_t, int8_t>(p, n)
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, void * p) const {
-        if (n <= 0) {
-            return;
-        }
-        else if (n <= 16) {
-            get_low().store_partial(n, p);
-        }
-        else if (n < 32) {
-            get_low().store(p);
-            get_high().store_partial(n-16, (char*)p+16);
-        }
-        else {
-            store(p);
-        }
+        nsimd_common::store_partial<pack256_32i_t, packl256_32i_t, int8_t>(p, n, ymm);
     }
     // cut off vector to n elements. The last 32-n elements are set to zero
     Vec32c & cutoff(int n) {
-        if (uint32_t(n) >= 32) return *this;
-        static const union {
-            int32_t i[16];
-            char    c[64];
-        } mask = {{-1,-1,-1,-1,-1,-1,-1,-1,0,0,0,0,0,0,0,0}};
-        *this &= Vec32c().load(mask.c+32-n);
+        ymm = nsimd_common::cutoff<pack256_32i_t, packl256_32i_t>(ymm, n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec32c const & insert(uint32_t index, int8_t value) {
-        static const int8_t maskl[64] = {0,0,0,0, 0,0,0,0, 0,0,0,0 ,0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,
-            -1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0 ,0,0,0,0, 0,0,0,0, 0,0,0,0};
-        __m256i broad = _mm256_set1_epi8(value);  // broadcast value into all elements
-        __m256i mask  = _mm256_loadu_si256((__m256i const*)(maskl+32-(index & 0x1F))); // mask with FF at index position
-        ymm = selectb(mask,broad,ymm);
+        ymm = nsimd_common::set_bit<pack256_32i_t, int8_t>(index, value, xmm)
         return *this;
     }
     // Member function extract a single element from vector
@@ -427,18 +381,21 @@ public:
     Vec32cb(bool x0, bool x1, bool x2, bool x3, bool x4, bool x5, bool x6, bool x7,
         bool x8, bool x9, bool x10, bool x11, bool x12, bool x13, bool x14, bool x15,
         bool x16, bool x17, bool x18, bool x19, bool x20, bool x21, bool x22, bool x23,
-        bool x24, bool x25, bool x26, bool x27, bool x28, bool x29, bool x30, bool x31) :
-        Vec32c(-int8_t(x0), -int8_t(x1), -int8_t(x2), -int8_t(x3), -int8_t(x4), -int8_t(x5), -int8_t(x6), -int8_t(x7), 
-            -int8_t(x8), -int8_t(x9), -int8_t(x10), -int8_t(x11), -int8_t(x12), -int8_t(x13), -int8_t(x14), -int8_t(x15),
-            -int8_t(x16), -int8_t(x17), -int8_t(x18), -int8_t(x19), -int8_t(x20), -int8_t(x21), -int8_t(x22), -int8_t(x23),
-            -int8_t(x24), -int8_t(x25), -int8_t(x26), -int8_t(x27), -int8_t(x28), -int8_t(x29), -int8_t(x30), -int8_t(x31))
-        {}
+        bool x24, bool x25, bool x26, bool x27, bool x28, bool x29, bool x30, bool x31) {
+            int8_t vec[32] = {
+                -int8_t(x0), -int8_t(x1), -int8_t(x2), -int8_t(x3), -int8_t(x4), -int8_t(x5), -int8_t(x6), -int8_t(x7),
+                -int8_t(x8), -int8_t(x9), -int8_t(x10), -int8_t(x11), -int8_t(x12), -int8_t(x13), -int8_t(x14), -int8_t(x15),
+                -int8_t(x16), -int8_t(x17), -int8_t(x18), -int8_t(x19), -int8_t(x20), -int8_t(x21), -int8_t(x22), -int8_t(x23),
+                -int8_t(x24), -int8_t(x25), -int8_t(x26), -int8_t(x27), -int8_t(x28), -int8_t(x29), -int8_t(x30), -int8_t(x31)
+            };
+            ymm = nsimd::loadla<packl256_32i_t>(vec);
+        }
     // Constructor to convert from type __m256i used in intrinsics:
-    Vec32cb(__m256i const & x) {
+    Vec32cb(packl256_32i_t const & x) {
         ymm = x;
     }
     // Assignment operator to convert from type __m256i used in intrinsics:
-    Vec32cb & operator = (__m256i const & x) {
+    Vec32cb & operator = (packl256_32i_t const & x) {
         ymm = x;
         return *this;
     }

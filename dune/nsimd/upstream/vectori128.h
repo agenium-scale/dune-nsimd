@@ -61,7 +61,7 @@ namespace NSIMD_NAMESPACE {
 *          Vector of 128 1-bit unsigned integers or Booleans
 *
 *****************************************************************************/
-template <typename PackT, template T>
+template <typename PackT, typename T>
 class Vec128b {
 protected:
     PackT xmm; // Integer vector
@@ -138,53 +138,63 @@ public:
 // Define operators for this class
 
 // vector operator & : bitwise and
-static inline Vec128b operator & (Vec128b const & a, Vec128b const & b) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> operator & (Vec128b<PackT, T> const & a, Vec128b<PackT, T> const & b) {
     return nsimd::andb(a, b);
 }
-static inline Vec128b operator && (Vec128b const & a, Vec128b const & b) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> operator && (Vec128b<PackT, T> const & a, Vec128b<PackT, T> const & b) {
     return a & b;
 }
 
 // vector operator | : bitwise or
-static inline Vec128b operator | (Vec128b const & a, Vec128b const & b) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> operator | (Vec128b<PackT, T> const & a, Vec128b<PackT, T> const & b) {
     return nsimd::orb(a, b);
 }
-static inline Vec128b operator || (Vec128b const & a, Vec128b const & b) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> operator || (Vec128b<PackT, T> const & a, Vec128b<PackT, T> const & b) {
     return a | b;
 }
 
 // vector operator ^ : bitwise xor
-static inline Vec128b operator ^ (Vec128b const & a, Vec128b const & b) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> operator ^ (Vec128b<PackT, T> const & a, Vec128b<PackT, T> const & b) {
     return nsimd::xorb(a, b);
 }
 
 // vector operator ~ : bitwise not
-static inline Vec128b operator ~ (Vec128b const & a) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> operator ~ (Vec128b<PackT, T> const & a) {
     return nsimd::notb(a);
 }
 
 // vector operator &= : bitwise and
-static inline Vec128b & operator &= (Vec128b & a, Vec128b const & b) {
-    a = a & b;
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> & operator &= (Vec128b<PackT, T> & a, Vec128b<PackT, T> const & b) {
+    a = nsimd::andb(a, b);
     return a;
 }
 
 // vector operator |= : bitwise or
-static inline Vec128b & operator |= (Vec128b & a, Vec128b const & b) {
-    a = a | b;
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> & operator |= (Vec128b<PackT, T> & a, Vec128b<PackT, T> const & b) {
+    a = nsimd::orb(a, b);
     return a;
 }
 
 // vector operator ^= : bitwise xor
-static inline Vec128b & operator ^= (Vec128b & a, Vec128b const & b) {
-    a = a ^ b;
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> & operator ^= (Vec128b<PackT, T> & a, Vec128b<PackT, T> const & b) {
+    a = nsimd::xorb(a, b);
     return a;
 }
 
 // Define functions for this class
 
 // function andnot: a & ~ b
-static inline Vec128b andnot (Vec128b const & a, Vec128b const & b) {
+template <typename PackT, typename T>
+static inline Vec128b<PackT, T> andnot (Vec128b<PackT, T> const & a, Vec128b<PackT, T> const & b) {
     return nsimd::andnotb(b, a);
 }
 
@@ -235,14 +245,85 @@ static inline pack128_16i_t selectb (pack128_16i_t const & s, pack128_16i_t cons
 *****************************************************************************/
 
 // horizontal_and. Returns true if all bits are 1
-static inline bool horizontal_and (Vec128b const & a) {
+template <typename PackT, typename T>
+static inline bool horizontal_and (Vec128b<PackT, T> const & a) {
     return nsimd::all(nsimd::to_logical(a));
 }
 
 // horizontal_or. Returns true if at least one bit is 1
-static inline bool horizontal_or (Vec128b const & a) {
+template <typename PackT, typename T>
+static inline bool horizontal_or (Vec128b<PackT, T> const & a) {
     return nsimd::any(nsimd::to_logical(a));
 }
+
+template <typename PackT, typename PacklT, typename T>
+class Vec128 : public Vec128b<PackT, T> {
+public:
+    // Default constructor:
+    Vec128() {
+    }// Constructor to convert from type __m128i used in intrinsics:
+    Vec128(PackT const & x) {
+        xmm = x;
+    }
+    // Constructor to broadcast the same value into all elements:
+    Vec128(int i) {
+        xmm = nsimd::set1<PackT>((T)i);
+    }
+    // Constructor to convert from type __m128i used in intrinsics:
+    Vec128(PackT const & x) {
+        xmm = x;
+    }
+    // Assignment operator to convert from type __m128i used in intrinsics:
+    Vec128 & operator = (PackT const & x) {
+        xmm = x;
+        return *this;
+    }
+    // Type cast operator to convert to __m128i used in intrinsics
+    operator PackT() const {
+        return xmm;
+    }
+    // Member function to load from array (unaligned)
+    Vec128 & load(void const * p) {
+        xmm = nsimd::loadu<PackT>((T const*)p);
+        return *this;
+    }
+    // Member function to load from array (aligned)
+    Vec128 & load_a(void const * p) {
+        xmm = nsimd::loada<PackT>((T const*)p);
+        return *this;
+    }
+    // Partial load. Load n elements and set the rest to 0
+    Vec128 & load_partial(int n, void const * p) {
+        xmm = nsimd_common::load_partial<PackT, PacklT, T>(p, n)
+        return *this;
+    }
+    // Partial store. Store n elements
+    void store_partial(int n, void * p) const {
+        nsimd_common::store_partial<PackT, PacklT, T>(p, n, xmm);
+    }
+    // cut off vector to n elements. The last 16-n elements are set to zero
+    Vec128 & cutoff(int n) {
+        xmm = nsimd_common::cutoff<PackT, PacklT>(xmm, n);
+        return *this;
+    }
+    // Member function to change a single element in vector
+    // Note: This function is inefficient. Use load function if changing more than one element
+    Vec128 const & insert(uint32_t index, int8_t value) {
+        xmm = nsimd_common::set_bit<PackT, char>(index, value, xmm)
+        return *this;
+    }
+    // Member function extract a single element from vector
+    T extract(uint32_t index) const {
+        int8_t x[16];
+        store(x);
+        return x[index & 0x0F];
+    }
+    // Extract a single element. Use store function if extracting more than one element.
+    // Operator [] can only read an element, not write.
+    T operator [] (uint32_t index) const {
+        return extract(index);
+    }
+};
 
 
 
@@ -252,17 +333,13 @@ static inline bool horizontal_or (Vec128b const & a) {
 *
 *****************************************************************************/
 
-class Vec16c : public Vec128b<pack128_16i_t, int8_t> {
+class Vec16c : public Vec128<pack128_16i_t, packl128_16i_t, int8_t> {
 public:
     // Default constructor:
     Vec16c() {
     }// Constructor to convert from type __m128i used in intrinsics:
-    Vec128b(pack128_16i_t const & x) {
+    Vec16c(pack128_16i_t const & x) {
         xmm = x;
-    }
-    // Constructor to broadcast the same value into all elements:
-    Vec16c(int i) {
-        xmm = nsimd::set1<pack128_16i_t>((char)i);
     }
     // Constructor to build from all elements:
     Vec16c(int8_t i0, int8_t i1, int8_t i2, int8_t i3, int8_t i4, int8_t i5, int8_t i6, int8_t i7,
@@ -283,47 +360,6 @@ public:
     operator pack128_16i_t() const {
         return xmm;
     }
-    // Member function to load from array (unaligned)
-    Vec16c & load(void const * p) {
-        xmm = nsimd::loadu<pack128_16i_t>((int8_t const*)p);
-        return *this;
-    }
-    // Member function to load from array (aligned)
-    Vec16c & load_a(void const * p) {
-        xmm = nsimd::loada<pack128_16i_t>((int8_t const*)p);
-        return *this;
-    }
-    // Partial load. Load n elements and set the rest to 0
-    Vec16c & load_partial(int n, void const * p) {
-        xmm = nsimd_common::load_partial<pack128_16i_t, packl128_16i_t, char>(p, n)
-        return *this;
-    }
-    // Partial store. Store n elements
-    void store_partial(int n, void * p) const {
-        nsimd_common::store_partial<pack128_16i_t, packl128_16i_t, char>(p, n, xmm);
-    }
-    // cut off vector to n elements. The last 16-n elements are set to zero
-    Vec16c & cutoff(int n) {
-        xmm = nsimd_common::cutoff<pack128_16i_t, packl128_16i_t>(xmm, n);
-        return *this;
-    }
-    // Member function to change a single element in vector
-    // Note: This function is inefficient. Use load function if changing more than one element
-    Vec16c const & insert(uint32_t index, int8_t value) {
-        xmm = nsimd_common::set_bit<pack128_16i_t, char>(index, value, xmm)
-        return *this;
-    }
-    // Member function extract a single element from vector
-    int8_t extract(uint32_t index) const {
-        int8_t x[16];
-        store(x);
-        return x[index & 0x0F];
-    }
-    // Extract a single element. Use store function if extracting more than one element.
-    // Operator [] can only read an element, not write.
-    int8_t operator [] (uint32_t index) const {
-        return extract(index);
-    }
     static int size() {
         return 16;
     }
@@ -335,7 +371,7 @@ public:
 *
 *****************************************************************************/
 
-class Vec16cb : public Vec16c {
+class Vec16cb : public Vec128<packl128_16i_t, packl128_16i_t, int8_t> {
 public:
     // Default constructor
     Vec16cb() {}
@@ -368,28 +404,21 @@ private: // Prevent constructing from int, etc.
     Vec16cb(int b);
     Vec16cb & operator = (int x);
 public:
-    Vec16cb & insert(int index, bool value) {
-        xmm = nsimd_common::set_bit<packl128_16i_t, char>(index, -int8_t(value), xmm);
-        return *this;
-    }
     // Member function extract a single element from vector
     int8_t extract(uint32_t index) const {
         int8_t x[16];
         store(x);
         return x[index & 0x0F] != 0;
     }
-
-    // Extract a single element. Use store function if extracting more than one element.
-    // Operator [] can only read an element, not write.
-    bool operator [] (uint32_t index) const {
-        return extract(index);
-    }
     // Type cast operator to convert to __m128i used in intrinsics
     operator packl128_16i_t() const {
         return xmm;
     }
+    
+    static int size() {
+        return 16;
+    }
 };
-
 
 /*****************************************************************************
 *
@@ -700,7 +729,7 @@ static inline Vec16c rotate_left(Vec16c const & aa, int ba) {
 *
 *****************************************************************************/
 
-class Vec16uc : public Vec16c {
+class Vec16uc : public Vec128<pack128_16ui_t, packl128_16i_t, uint8_t> {
 public:
     // Default constructor:
     Vec16uc() {
@@ -718,36 +747,6 @@ public:
     // Constructor to convert from type __m128i used in intrinsics:
     Vec16uc(pack128_16ui_t const & x) {
         xmm = x;
-    }
-    // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec16uc & operator = (pack128_16ui_t const & x) {
-        xmm = x;
-        return *this;
-    }
-    // Member function to load from array (unaligned)
-    Vec16uc & load(void const * p) {
-        xmm = nsimd::loadu<pack128_16ui_t>((*char)p);
-        return *this;
-    }
-    // Member function to load from array (aligned)
-    Vec16uc & load_a(void const * p) {
-        xmm = nsimd::loada<pack128_16ui_t>((*char)p);
-        return *this;
-    }
-    // Member function to change a single element in vector
-    // Note: This function is inefficient. Use load function if changing more than one element
-    Vec16uc const & insert(uint32_t index, uint8_t value) {
-        Vec16c::insert(index, value);
-        return *this;
-    }
-    // Member function extract a single element from vector
-    uint8_t extract(uint32_t index) const {
-        return Vec16c::extract(index);
-    }
-    // Extract a single element. Use store function if extracting more than one element.
-    // Operator [] can only read an element, not write.
-    uint8_t operator [] (uint32_t index) const {
-        return extract(index);
     }
 };
 
@@ -975,7 +974,7 @@ public:
 *
 *****************************************************************************/
 
-class Vec8sb : public Vec8s {
+class Vec8sb : public Vec128<packl128_8ui_t, packl128_8i_t, uint8_t> {
 public:
     // Constructor to build from all elements:
     Vec8sb(bool x0, bool x1, bool x2, bool x3, bool x4, bool x5, bool x6, bool x7) {

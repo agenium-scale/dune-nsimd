@@ -4,35 +4,35 @@
 #include "instrset.h"  // Select supported instruction set
 
 #if defined(NSIMD_SSE2)
-    #define nsimd::sse2 SIMD128_EXT
+    #define SIMD128_EXT nsimd::sse2 
 #elif defined(NSIMD_SSE42)
-    #define nsimd::sse2 SIMD128_EXT
+    #define SIMD128_EXT nsimd::sse42 
 #elif defined(NSIMD_SSE42)
-    #define nsimd::sse42 SIMD128_EXT
+    #define SIMD128_EXT nsimd::sse42
 #elif defined(NSIMD_AARCH64)
-    #define nsimd::aarch64 SIMD128_EXT
+    #define SIMD128_EXT nsimd::aarch64
 #elif defined(NSIMD_SVE128)
-    #define nsimd::sve128 SIMD128_EXT
+    #define SIMD128_EXT nsimd::sve128
 #elif defined(NSIMD_NEON128)
-    #define nsimd::neon128 SIMD128_EXT
+    #define SIMD128_EXT nsimd::neon128
 #else 
-    #define nsimd::cpu SIMD128_EXT
+    #define SIMD128_EXT nsimd::cpu
 #endif
 
 #if defined(NSIMD_AVX)
-    #define nsimd::avx SIMD256_EXT
+    #define SIMD256_EXT nsimd::avx
 #elif defined(NSIMD_AVX2)
-    #define nsimd::avx2 SIMD256_EXT
+    #define SIMD256_EXT nsimd::avx2
 #elif defined(NSIMD_SVE256)
-    #define nsimd::sve256 SIMD256_EXT
+    #define SIMD256_EXT nsimd::sve256
 #endif
 
 #if defined(NSIMD_AVX512_KNL)
-    #define nsimd::avx512_knl SIMD512_EXT
+    #define SIMD512_EXT nsimd::avx512_knl
 #elif defined(NSIMD_AVX512_SKYLAKE)
-    #define nsimd::avx512_skylake SIMD512_EXT
+    #define SIMD512_EXT nsimd::avx512_skylake
 #elif defined(NSIMD_SVE512)
-    #define nsimd::sve512 SIMD512_EXT
+    #define SIMD512_EXT nsimd::sve512
 #endif
 
 /*****************************************************************************
@@ -46,18 +46,22 @@
     typedef nsimd::pack<signed char, 1, SIMD128_EXT>    pack128_16i_t;
     typedef nsimd::pack<unsigned char, 1, SIMD128_EXT>  pack128_16ui_t;
     typedef nsimd::packl<signed char, 1, SIMD128_EXT>   packl128_16i_t;
+    typedef nsimd::packl<signed char, 1, SIMD128_EXT>   packl128_16ui_t;
 
     typedef nsimd::pack<signed short, 1, SIMD128_EXT>   pack128_8i_t;
     typedef nsimd::pack<unsigned short, 1, SIMD128_EXT> pack128_8ui_t;
     typedef nsimd::packl<signed short, 1, SIMD128_EXT>  packl128_8i_t;
+    typedef nsimd::packl<unsigned short, 1, SIMD128_EXT> packl128_8ui_t;
 
     typedef nsimd::pack<signed int, 1, SIMD128_EXT>     pack128_4i_t;
     typedef nsimd::pack<unsigned int, 1, SIMD128_EXT>   pack128_4ui_t;
     typedef nsimd::packl<signed int, 1, SIMD128_EXT>    packl128_4i_t;
+    typedef nsimd::packl<unsigned int, 1, SIMD128_EXT>    packl128_4ui_t;
     
     typedef nsimd::pack<signed long, 1, SIMD128_EXT>    pack128_2i_t;
     typedef nsimd::pack<unsigned long, 1, SIMD128_EXT>  pack128_2ui_t;
     typedef nsimd::packl<signed long, 1, SIMD128_EXT>   packl128_2i_t;
+    typedef nsimd::packl<unsigned long, 1, SIMD128_EXT>   packl128_2ui_t;
 #endif
 
 
@@ -71,18 +75,22 @@
     typedef nsimd::pack<signed char, 1, SIMD256_EXT>   pack256_32i_t;
     typedef nsimd::pack<unsigned char, 1, SIMD256_EXT> pack256_32ui_t;
     typedef nsimd::packl<signed char, 1, SIMD256_EXT>  packl256_32i_t;
+    typedef nsimd::packl<unsigned char, 1, SIMD256_EXT>  packl256_32ui_t;
 
     typedef nsimd::pack<signed short, 1, SIMD256_EXT>   pack256_16i_t;
     typedef nsimd::pack<unsigned short, 1, SIMD256_EXT> pack256_16ui_t;
     typedef nsimd::packl<signed short, 1, SIMD256_EXT>  packl256_16i_t;
+    typedef nsimd::packl<unsigned short, 1, SIMD256_EXT>  packl256_16ui_t;
 
     typedef nsimd::pack<signed int, 1, SIMD256_EXT>     pack256_8i_t;
     typedef nsimd::pack<unsigned int, 1, SIMD256_EXT>   pack256_8ui_t;
     typedef nsimd::packl<signed int, 1, SIMD256_EXT>    packl256_8i_t;
+    typedef nsimd::packl<unsigned int, 1, SIMD256_EXT>    packl256_8ui_t;
     
     typedef nsimd::pack<signed long, 1, SIMD256_EXT>    pack256_4i_t;
     typedef nsimd::pack<unsigned long, 1, SIMD256_EXT>  pack256_4ui_t;
     typedef nsimd::packl<signed long, 1, SIMD256_EXT>   packl256_4i_t;
+    typedef nsimd::packl<unsigned long, 1, SIMD256_EXT>   packl256_4ui_t;
 #endif
 
 /*****************************************************************************
@@ -95,18 +103,22 @@
     typedef nsimd::pack<signed char, 1, SIMD512_EXT>    pack512_64i_t;
     typedef nsimd::pack<unsigned char, 1, SIMD512_EXT>  pack512_64ui_t;
     typedef nsimd::packl<signed char, 1, SIMD512_EXT>   packl512_64i_t;
+    typedef nsimd::packl<unsigned char, 1, SIMD512_EXT>   packl512_64ui_t;
 
     typedef nsimd::pack<signed short, 1, SIMD512_EXT>   pack512_32i_t;
     typedef nsimd::pack<unsigned short, 1, SIMD512_EXT> pack512_32ui_t;
     typedef nsimd::packl<signed short, 1, SIMD512_EXT>  packl512_32i_t;
+    typedef nsimd::packl<unsigned short, 1, SIMD512_EXT>  packl512_32ui_t;
 
     typedef nsimd::pack<signed int, 1, SIMD512_EXT>     pack512_16i_t;
     typedef nsimd::pack<unsigned int, 1, SIMD512_EXT>   pack512_16ui_t;
     typedef nsimd::packl<signed int, 1, SIMD512_EXT>    packl512_16i_t;
+    typedef nsimd::packl<unsigned int, 1, SIMD512_EXT>    packl512_16ui_t;
     
     typedef nsimd::pack<signed long, 1, SIMD512_EXT>    pack512_8i_t;
     typedef nsimd::pack<unsigned long, 1, SIMD512_EXT>  pack512_8ui_t;
     typedef nsimd::packl<signed long, 1, SIMD512_EXT>   packl512_8i_t;
+    typedef nsimd::packl<unsigned long, 1, SIMD512_EXT>   packl512_8ui_t;
 #endif
 
 

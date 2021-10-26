@@ -108,13 +108,13 @@ template <typename FromPack, typename FromPackl, typename FromType, typename ToP
 ToPack get_high(const FromPack &v)
 {
     ToType n = nsimd::len(v);
-    FromPack r = nsimd::set1<FromPack>(T(0));
+    FromPack r = nsimd::set1<FromPack>(FromType(0));
     FromPackl mask = nsimd::mask_for_loop_tail<FromPackl>(n/2, n);
     r = nsimd::masko_loadu1<ToPack>(mask, v, r);
     return r;
 }
 //------------------------ CUTOFF -------------------------
-template <typename PackT, typename PacklT>
+template <typename PackT, typename PacklT, typename T>
 PackT cutoff(PackT& v, int n)
 {
     unsigned int len = nsimd::len(v);
@@ -122,8 +122,8 @@ PackT cutoff(PackT& v, int n)
     {
         return v;
     }
-    nsimd::pack<T> res = nsimd::set1<PackT >(T(0));
-    nsimd::packl<T> mask = nsimd::mask_for_loop_tail<PacklT >(0, n);
+    PackT res = nsimd::set1<PackT >(T(0));
+    PacklT mask = nsimd::mask_for_loop_tail<PacklT >(0, n);
     T* r = (T *)malloc(sizeof(T) * len);
     nsimd::storeu<PackT>(r, v);
     res = nsimd::masko_loadu1<PackT>(mask, r, res);
@@ -141,7 +141,7 @@ PackT set_bit(unsigned int index, T value, PackT& pack)
     T buf[len];
     nsimd::storeu(buf, pack);
     buf[index] = value;
-    nsimd::pack<T> res = nsimd::loadu<PackT >(buf);
+    PackT res = nsimd::loadu<PackT >(buf);
     return res;
 }
 
@@ -159,22 +159,22 @@ int get_bit(unsigned int index, PackT& pack)
 }
 
 //------------------------ ABS SATURATED -------------------------
-template <typename T>
-nsimd::pack<T> abs_saturated(nsimd::pack<T>& pack)
+template <typename PackT, typename T>
+PackT abs_saturated(nsimd::pack<T>& pack)
 {
-    nsimd::pack<T> absa   = nsimd::abs(pack);
-    return nsimd::adds(absa, nsimd::set1<nsimd::pack<T>>(T(0)));
+    PackT absa   = nsimd::abs(pack);
+    return nsimd::adds(absa, nsimd::set1<PackT>(T(0)));
 }
 
 //------------------------ HORIZONTALL ADD -------------------------
-template <typename T>
-float horizontal_add(nsimd::pack<T>& pack)
+template <typename PackT>
+float horizontal_add(PackT& pack)
 {
     return nsimd::addv(pack);
 }
 
-template <typename T>
-float horizontal_add_x(nsimd::pack<T>& pack)
+template <typename PackT>
+float horizontal_add_x(PackT& pack)
 {
     return nsimd::addv(pack);
 }
@@ -362,7 +362,7 @@ PackT shift_bytes_up32(PackT const & a, int b)
       -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
       0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
     };
-    PackT index = nsimd::loadu<nsimdPackT>(mask+max_len-b);
+    PackT index = nsimd::loadu<PackT>(mask+max_len-b);
     return lookup32<T>(index, a);
 }
 
@@ -502,7 +502,7 @@ static inline void scatter8(PackT const & data, void * array)
     nsimd::scatter((T*)array, a2, data);
 }
 
-template <typnemane PackT, typename T, int len>
+template <typename PackT, typename T, int len>
 void scatter(PackT const & index, int limit, PackT const & data, void * array) {
     int max_len = len;
     T buf[max_len];
@@ -614,6 +614,51 @@ PackT blend16(PackT const &v1, PackT const &v2) {
     return nsimd::loadu<PackT>(res);
 }
 
+template <int i0, int i1, int i2, int i3, int i4, int i5, int i6, int i7,
+    int i8, int i9, int i10, int i11, int i12, int i13, int i14, int i15,
+    int i16, int i17, int i18, int i19, int i20, int i21, int i22, int i23,
+    int i24, int i25, int i26, int i27, int i28, int i29, int i30, int i31, typename PackT, typename T>
+PackT blend32(PackT const &v1, PackT const &v2) {
+    int max_len = 32;
+    T buf[2 * max_len];
+    T res[max_len];
+    nsimd::storeu(buf, v1);
+    nsimd::storeu(buf + nsimd::len(v1), v2);
+    res[0]  = (i0 >= 0 && i0 < 2*max_len   ? buf[i0]  : T(0));
+    res[1]  = (i1 >= 0 && i1 < 2*max_len   ? buf[i1]  : T(0));
+    res[2]  = (i2 >= 0 && i2 < 2*max_len   ? buf[i2]  : T(0));
+    res[3]  = (i3 >= 0 && i3 < 2*max_len   ? buf[i3]  : T(0));
+    res[4]  = (i4 >= 0 && i4 < 2*max_len   ? buf[i4]  : T(0));
+    res[5]  = (i5 >= 0 && i5 < 2*max_len   ? buf[i5]  : T(0));
+    res[6]  = (i6 >= 0 && i6 < 2*max_len   ? buf[i6]  : T(0));
+    res[7]  = (i7 >= 0 && i7 < 2*max_len   ? buf[i7]  : T(0));
+    res[8]  = (i8 >= 0 && i8 < 2*max_len   ? buf[i8]  : T(0));
+    res[9]  = (i9 >= 0 && i9 < 2*max_len   ? buf[i9]  : T(0));
+    res[10] = (i10 >= 0 && i10 < 2*max_len ? buf[i10] : T(0));
+    res[11] = (i11 >= 0 && i11 < 2*max_len ? buf[i11] : T(0));
+    res[12] = (i12 >= 0 && i12 < 2*max_len ? buf[i12] : T(0));
+    res[13] = (i13 >= 0 && i13 < 2*max_len ? buf[i13] : T(0));
+    res[14] = (i14 >= 0 && i14 < 2*max_len ? buf[i14] : T(0));
+    res[15] = (i15 >= 0 && i15 < 2*max_len ? buf[i15] : T(0));
+    res[16] = (i16 >= 0 && i16 < 2*max_len ? buf[i16] : T(0));
+    res[17] = (i17 >= 0 && i17 < 2*max_len ? buf[i17] : T(0));
+    res[18] = (i18 >= 0 && i18 < 2*max_len ? buf[i18] : T(0));
+    res[19] = (i19 >= 0 && i19 < 2*max_len ? buf[i19] : T(0));
+    res[20] = (i20 >= 0 && i20 < 2*max_len ? buf[i20] : T(0));
+    res[21] = (i21 >= 0 && i21 < 2*max_len ? buf[i21] : T(0));
+    res[22] = (i22 >= 0 && i22 < 2*max_len ? buf[i22] : T(0));
+    res[23] = (i23 >= 0 && i23 < 2*max_len ? buf[i23] : T(0));
+    res[24] = (i24 >= 0 && i24 < 2*max_len ? buf[i24] : T(0));
+    res[25] = (i25 >= 0 && i25 < 2*max_len ? buf[i25] : T(0));
+    res[26] = (i26 >= 0 && i26 < 2*max_len ? buf[i26] : T(0));
+    res[27] = (i27 >= 0 && i27 < 2*max_len ? buf[i27] : T(0));
+    res[28] = (i28 >= 0 && i28 < 2*max_len ? buf[i28] : T(0));
+    res[29] = (i29 >= 0 && i29 < 2*max_len ? buf[i29] : T(0));
+    res[30] = (i30 >= 0 && i30 < 2*max_len ? buf[i30] : T(0));
+    res[31] = (i31 >= 0 && i31 < 2*max_len ? buf[i31] : T(0));
+    return nsimd::loadu<PackT>(res);
+}
+
 //-------------------------- GET_HIGH/LOW ------------------------------
 // len(PACK_T) = len(PACK_U)/2
 template <typename PACK_T, typename PACK_U, typename T, typename U>
@@ -649,7 +694,7 @@ static inline uint32_t horizontal_find_first(T const & x) {
 
 //------------------------ COMPRESS -------------------------
 template <typename PackT, typename T, typename PackU, typename U>
-packT compress4(PackU const & low, PackU const & high, bool is_saturated = false)
+PackT compress4(PackU const & low, PackU const & high, bool is_saturated = false)
 {
     U low1[2];
     U high1[2];

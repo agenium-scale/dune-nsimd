@@ -58,8 +58,8 @@ namespace NSIMD_NAMESPACE {
 // and operators. Corresponds to this pseudocode:
 // for (int i = 0; i < size; i++) result[i] = s[i] ? a[i] : b[i];
 // Each element in s must be either 0 (false) or 0xFFFFFFFF (true).
-static inline pack4f_t selectf (pack4f_t const & s, pack4f_t const & a, pack4f_t const & b) {
-    return nsimd::if_else(nsimd::to_logical(b), a, s);
+static inline pack4f_t selectf (packl4f_t const & s, pack4f_t const & a, pack4f_t const & b) {
+    return nsimd::if_else1(s, a, b);
 }
 
 // Same, with two pack of double sources.
@@ -67,8 +67,8 @@ static inline pack4f_t selectf (pack4f_t const & s, pack4f_t const & a, pack4f_t
 // for (int i = 0; i < size; i++) result[i] = s[i] ? a[i] : b[i];
 // Each element in s must be either 0 (false) or 0xFFFFFFFFFFFFFFFF (true). No other 
 // values are allowed.
-static inline pack2d_t selectd (pack2d_t const & s, pack2d_t const & a, pack2d_t const & b) {
-    return nsimd::if_else(nsimd::to_logical(b), a, s);
+static inline pack2d_t selectd (packl2d_t const & s, pack2d_t const & a, pack2d_t const & b) {
+    return nsimd::if_else1(s, a, b);
 }
 
 
@@ -114,11 +114,11 @@ private: // Prevent constructing from int, etc.
 public:
     // Constructor to convert from type Vec4ib used as Boolean for integer vectors
     Vec4fb(Vec4ib const & x) {
-        xmm = nsimd::reinterpretl<packl4f_t>(x); 
+        xmm = nsimd::reinterpretl<packl4f_t>(packl128_4i_t(x)); 
     }
     // Assignment operator to convert from type Vec4ib used as Boolean for integer vectors
     Vec4fb & operator = (Vec4ib const & x) {
-        xmm = nsimd::reinterpretl<packl4f_t>(x); 
+        xmm = nsimd::reinterpretl<packl4f_t>(packl128_4i_t(x)); 
         return *this;
     }
     // Type cast operator to convert to __m128 used in intrinsics
@@ -162,7 +162,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec4fb operator & (Vec4fb const & a, Vec4fb const & b) {
-    return nsimd::andl(a, b);
+    return nsimd::andl(packl4f_t(a), packl4f_t(b));
 }
 static inline Vec4fb operator && (Vec4fb const & a, Vec4fb const & b) {
     return a & b;
@@ -176,7 +176,7 @@ static inline Vec4fb & operator &= (Vec4fb & a, Vec4fb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4fb operator | (Vec4fb const & a, Vec4fb const & b) {
-    return nsimd::orl(a, b);
+    return nsimd::orl(packl4f_t(a), packl4f_t(b));
 }
 static inline Vec4fb operator || (Vec4fb const & a, Vec4fb const & b) {
     return a | b;
@@ -190,7 +190,7 @@ static inline Vec4fb & operator |= (Vec4fb & a, Vec4fb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4fb operator ^ (Vec4fb const & a, Vec4fb const & b) {
-    return nsimd::xorl(a, b);
+    return nsimd::xorl(packl4f_t(a), packl4f_t(b));
 }
 
 // vector operator ^= : bitwise xor
@@ -201,21 +201,21 @@ static inline Vec4fb & operator ^= (Vec4fb & a, Vec4fb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4fb operator ~ (Vec4fb const & a) {
-    return nsimd::notl(a);
+    return nsimd::notl(packl4f_t(a));
 }
 
 // vector operator ! : logical not
 // (operator ! is less efficient than operator ~. Use only where not
 // all bits in an element are the same)
 static inline Vec4fb operator ! (Vec4fb const & a) {
-    return Vec4fb( ! Vec4ib(a));
+    return nsimd::notl(packl4f_t(a));
 }
 
 // Functions for Vec4fb
 
 // andnot: a & ~ b
 static inline Vec4fb andnot(Vec4fb const & a, Vec4fb const & b) {
-    return nsimd::andnotl(b, a);
+    return nsimd::andnotl(packl4f_t(b), packl4f_t(a));
 }
 
 
@@ -227,12 +227,12 @@ static inline Vec4fb andnot(Vec4fb const & a, Vec4fb const & b) {
 
 // horizontal_and. Returns true if all bits are 1
 static inline bool horizontal_and (Vec4fb const & a) {
-    return nsimd::all(a);
+    return nsimd::all(packl4f_t(a));
 }
 
 // horizontal_or. Returns true if at least one bit is 1
 static inline bool horizontal_or (Vec4fb const & a) {
-    return nsimd::any(a);
+    return nsimd::any(packl4f_t(a));
 }
 
 
@@ -280,13 +280,11 @@ private: // Prevent constructing from int, etc.
 public:
     // Constructor to convert from type Vec2qb used as Boolean for integer vectors
     Vec2db(Vec2qb const & x) {
-        xmm = _mm_castsi128_pd(x);
-        // xmm = nsimd::reinterpretl<unsigned int, double>(set);
+        xmm = nsimd::reinterpretl<packl2d_t>(packl128_2i_t(x));
     }
     // Assignment operator to convert from type Vec2qb used as Boolean for integer vectors
     Vec2db & operator = (Vec2qb const & x) {
-        xmm = _mm_castsi128_pd(x);
-        // xmm = nsimd::reinterpretl<unsigned int, double>(set);
+        xmm = nsimd::reinterpretl<packl2d_t>(packl128_2i_t(x));
         return *this;
     }
     // Type cast operator to convert to __m128d used in intrinsics
@@ -328,7 +326,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec2db operator & (Vec2db const & a, Vec2db const & b) {
-    return nsimd::andl(a, b);
+    return nsimd::andl(packl2d_t(a), packl2d_t(b));
 }
 static inline Vec2db operator && (Vec2db const & a, Vec2db const & b) {
     return a & b;
@@ -342,7 +340,7 @@ static inline Vec2db & operator &= (Vec2db & a, Vec2db const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2db operator | (Vec2db const & a, Vec2db const & b) {
-    return nsimd::orl(a, b);
+    return nsimd::orl(packl2d_t(a), packl2d_t(b));
 }
 static inline Vec2db operator || (Vec2db const & a, Vec2db const & b) {
     return a | b;
@@ -356,7 +354,7 @@ static inline Vec2db & operator |= (Vec2db & a, Vec2db const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2db operator ^ (Vec2db const & a, Vec2db const & b) {
-    return nsimd::xorl(a, b);
+    return nsimd::xorl(packl2d_t(a), packl2d_t(b));
 }
 
 // vector operator ^= : bitwise xor
@@ -367,8 +365,7 @@ static inline Vec2db & operator ^= (Vec2db & a, Vec2db const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec2db operator ~ (Vec2db const & a) {
-    Vec2db b = nsimd::reinterpretl<int, double>(nsimd::set1<pack4i_t>(-1));
-    return nsimd::xorl(a, b);
+    return nsimd::notl(packl2d_t(a));
 }
 
 // vector operator ! : logical not
@@ -382,7 +379,7 @@ static inline Vec2db operator ! (Vec2db const & a) {
 
 // andnot: a & ~ b
 static inline Vec2db andnot(Vec2db const & a, Vec2db const & b) {
-    return nsimd::andnotl(b, a);
+    return nsimd::andnotl(packl2d_t(b), packl2d_t(a));
 }
 
 
@@ -394,12 +391,12 @@ static inline Vec2db andnot(Vec2db const & a, Vec2db const & b) {
 
 // horizontal_and. Returns true if all bits are 1
 static inline bool horizontal_and (Vec2db const & a) {
-    return nsimd::all(a);
+    return nsimd::all(packl2d_t(a));
 }
 
 // horizontal_or. Returns true if at least one bit is 1
 static inline bool horizontal_or (Vec2db const & a) {
-    return nsimd::any(a);
+    return nsimd::any(packl2d_t(a));
 }
 
 
@@ -472,11 +469,11 @@ public:
     }
     // Partial store. Store n elements
     void store_partial(int n, float * p) const {
-        nsimd_common::store_partial<pack4f_t, packl4f_t, float>(p, n);
+        nsimd_common::store_partial<pack4f_t, packl4f_t, float>(p, n, xmm);
     }
     // cut off vector to n elements. The last 4-n elements are set to zero
     Vec4f & cutoff(int n) {
-        xmm = nsimd_common::cutoff(n);
+        xmm = nsimd_common::cutoff<pack4f_t, packl4f_t, float>(xmm, n);
         return *this;
     }
     // Member function to change a single element in vector
@@ -510,7 +507,7 @@ public:
 
 // vector operator + : add element by element
 static inline Vec4f operator + (Vec4f const & a, Vec4f const & b) {
-    return nsimd::add(a, b);
+    return nsimd::add(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator + : add vector and scalar
@@ -542,7 +539,7 @@ static inline Vec4f & operator ++ (Vec4f & a) {
 
 // vector operator - : subtract element by element
 static inline Vec4f operator - (Vec4f const & a, Vec4f const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator - : subtract vector and scalar
@@ -556,7 +553,7 @@ static inline Vec4f operator - (float a, Vec4f const & b) {
 // vector operator - : unary minus
 // Change sign bit, even for 0, INF and NAN
 static inline Vec4f operator - (Vec4f const & a) {
-    return nsimd::xorb(a, nsimd::reinterpret<int, float>(nsimd::set1<nsimd::pack<int>>(0x80000000)));
+    return nsimd::xorb(pack4f_t(a), nsimd::reinterpret<pack4f_t>(nsimd::set1<pack128_4i_t>(0x80000000)));
 }
 
 // vector operator -= : subtract
@@ -580,7 +577,7 @@ static inline Vec4f & operator -- (Vec4f & a) {
 
 // vector operator * : multiply element by element
 static inline Vec4f operator * (Vec4f const & a, Vec4f const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator * : multiply vector and scalar
@@ -599,7 +596,7 @@ static inline Vec4f & operator *= (Vec4f & a, Vec4f const & b) {
 
 // vector operator / : divide all elements by same integer
 static inline Vec4f operator / (Vec4f const & a, Vec4f const & b) {
-    return nsimd::div(a, b);
+    return nsimd::div(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator / : divide vector and scalar
@@ -618,39 +615,39 @@ static inline Vec4f & operator /= (Vec4f & a, Vec4f const & b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec4fb operator == (Vec4f const & a, Vec4f const & b) {
-    return nsimd::eq(a, b);
+    return nsimd::eq(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec4fb operator != (Vec4f const & a, Vec4f const & b) {
-    return nsimd::notl(nsimd::eq(a, b));
+    return nsimd::ne(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator < : returns true for elements for which a < b
 static inline Vec4fb operator < (Vec4f const & a, Vec4f const & b) {
-    return nsimd::lt(a, b);
+    return nsimd::lt(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator <= : returns true for elements for which a <= b
 static inline Vec4fb operator <= (Vec4f const & a, Vec4f const & b) {
-    return nsimd::le(a, b);
+    return nsimd::le(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator > : returns true for elements for which a > b
 static inline Vec4fb operator > (Vec4f const & a, Vec4f const & b) {
-    return nsimd::gt(a, b);
+    return nsimd::gt(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator >= : returns true for elements for which a >= b
 static inline Vec4fb operator >= (Vec4f const & a, Vec4f const & b) {
-    return nsimd::ge(a, b);
+    return nsimd::ge(pack4f_t(a),pack4f_t(b));
 }
 
 // Bitwise logical operators
 
 // vector operator & : bitwise and
 static inline Vec4f operator & (Vec4f const & a, Vec4f const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator &= : bitwise and
@@ -661,15 +658,15 @@ static inline Vec4f & operator &= (Vec4f & a, Vec4f const & b) {
 
 // vector operator & : bitwise and of Vec4f and Vec4fb
 static inline Vec4f operator & (Vec4f const & a, Vec4fb const & b) {
-    return nsimd::andb(a, nsimd::to_mask(b));
+    return nsimd::andb(pack4f_t(a), nsimd::to_mask(packl4f_t(b)));
 }
 static inline Vec4f operator & (Vec4fb const & a, Vec4f const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator | : bitwise or
 static inline Vec4f operator | (Vec4f const & a, Vec4f const & b) {
-    return nsimd::orb(a, b);
+    return nsimd::orb(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator |= : bitwise or
@@ -680,7 +677,7 @@ static inline Vec4f & operator |= (Vec4f & a, Vec4f const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4f operator ^ (Vec4f const & a, Vec4f const & b) {
-    return nsimd::xorb(a, b);
+    return nsimd::xorb(pack4f_t(a), pack4f_t(b));
 }
 
 // vector operator ^= : bitwise xor
@@ -723,28 +720,28 @@ static inline Vec4f if_mul (Vec4fb const & f, Vec4f const & a, Vec4f const & b) 
 
 // Horizontal add: Calculates the sum of all vector elements.
 static inline float horizontal_add (Vec4f const & a) {
-    return nsimd:_common::horizontal_add(a);
+    return nsimd_common::horizontal_add(a);
 }
 
 // function max: a > b ? a : b
 static inline Vec4f max(Vec4f const & a, Vec4f const & b) {
-    return nsimd::max(a,b);
+    return nsimd::max(pack4f_t(a),pack4f_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec4f min(Vec4f const & a, Vec4f const & b) {
-    return nsimd::min(a,b);
+    return nsimd::min(pack4f_t(a),pack4f_t(b));
 }
 
 // function abs: absolute value
 // Removes sign bit, even for -0.0f, -INF and -NAN
 static inline Vec4f abs(Vec4f const & a) {
-    return nsimd::abs(a);
+    return nsimd::abs(pack4f_t(a));
 }
 
 // function sqrt: square root
 static inline Vec4f sqrt(Vec4f const & a) {
-    return nsimd::sqrt(a);
+    return nsimd::sqrt(pack4f_t(a));
 }
 
 // function square: a * a
@@ -848,42 +845,42 @@ static inline Vec4f pow(Vec4f const & a, Const_int_t<n>) {
 
 // function round: round to nearest integer (even). (result as float vector)
 static inline Vec4f round(Vec4f const & a) {
-    nsimd::round_to_even(a);
+    nsimd::round_to_even(pack4f_t(a));
 }
 
 // function truncate: round towards zero. (result as float vector)
 static inline Vec4f truncate(Vec4f const & a) {
-    return nsimd::trunc(a);
+    return nsimd::trunc(pack4f_t(a));
 }
 
 // function floor: round towards minus infinity. (result as float vector)
 static inline Vec4f floor(Vec4f const & a) {
-    return nsimd::floor(a);
+    return nsimd::floor(pack4f_t(a));
 }
 
 // function ceil: round towards plus infinity. (result as float vector)
 static inline Vec4f ceil(Vec4f const & a) {
-    return nsimd::ceil(a);
+    return nsimd::ceil(pack4f_t(a));
 }
 
 // function round_to_int: round to nearest integer (even). (result as integer vector)
 static inline Vec4i round_to_int(Vec4f const & a) {
-    return nsimd::cvt<float, int>(a);
+    return nsimd::cvt<pack128_4i_t>(pack4f_t(a));
 }
 
 // function truncate_to_int: round towards zero. (result as integer vector)
 static inline Vec4i truncate_to_int(Vec4f const & a) {
-    return _mm_cvttps_epi32(a.native_register());
+    return nsimd::cvt<pack128_4i_t>(nsimd::trunc(pack4f_t(a)));
 }
 
 // function to_float: convert integer vector to float vector
 static inline Vec4f to_float(Vec4i const & a) {
-    return nsimd::cvt<int, float>(a);
+    return nsimd::cvt<pack4f_t>(pack128_4i_t(a));
 }
 
 // function to_float: convert unsigned integer vector to float vector
 static inline Vec4f to_float(Vec4ui const & a) {
-    nsimd::cvt<pack4f_t>(a);
+    nsimd::cvt<pack4f_t>(pack128_4ui_t(a));
 }
 
 
@@ -891,36 +888,36 @@ static inline Vec4f to_float(Vec4ui const & a) {
 
 // approximate reciprocal (Faster than 1.f / a. relative accuracy better than 2^-11)
 static inline Vec4f approx_recipr(Vec4f const & a) {
-    return nsimd::rcp11(a);
+    return nsimd::rec11(pack4f_t(a));
 }
 
 // approximate reciprocal squareroot (Faster than 1.f / sqrt(a). Relative accuracy better than 2^-11)
 static inline Vec4f approx_rsqrt(Vec4f const & a) {
-    return nsimd::rsqrt11(a);
+    return nsimd::rsqrt11(pack4f_t(a));
 }
 
 // Fused multiply and add functions
 
 // Multiply and add
 static inline Vec4f mul_add(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-    return nsimd::fma(a, b, c);
+    return nsimd::fma(pack4f_t(a), pack4f_t(b), pack4f_t(c));
 }
 
 // Multiply and subtract
 static inline Vec4f mul_sub(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-    return nsimd::fms(a, b, c);
+    return nsimd::fms(pack4f_t(a), pack4f_t(b), pack4f_t(c));
 }
 
 // Multiply and inverse subtract
 static inline Vec4f nmul_add(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-    return nsimd::fnma(a, b, c);
+    return nsimd::fnma(pack4f_t(a), pack4f_t(b), pack4f_t(c));
 }
 
 
 // Multiply and subtract with extra precision on the intermediate calculations, 
 // even if FMA instructions not supported, using Veltkamp-Dekker split
 static inline Vec4f mul_sub_x(Vec4f const & a, Vec4f const & b, Vec4f const & c) {
-    return nsimd::fnms(a, b, c);
+    return nsimd::fnms(pack4f_t(a), pack4f_t(b), pack4f_t(c));
 }
 
 // Math functions using fast bit manipulation
@@ -929,7 +926,7 @@ static inline Vec4f mul_sub_x(Vec4f const & a, Vec4f const & b, Vec4f const & c)
 // exponent(a) = floor(log2(abs(a)));
 // exponent(1.0f) = 0, exponent(0.0f) = -127, exponent(INF) = +128, exponent(NAN) = +128
 static inline Vec4i exponent(Vec4f const & a) {
-    Vec4ui t1 = _mm_castps_si128(a);   // reinterpret as 32-bit integer
+    Vec4ui t1 = nsimd::reinterpret<pack128_4ui_t>(pack4f_t(a));   // reinterpret as 32-bit integer
     Vec4ui t2 = t1 << 1;               // shift out sign bit
     Vec4ui t3 = t2 >> 24;              // shift down logical to position 0
     Vec4i  t4 = Vec4i(t3) - 0x7F;      // subtract bias from exponent
@@ -941,9 +938,9 @@ static inline Vec4i exponent(Vec4f const & a) {
 // fraction(1.0f) = 1.0f, fraction(5.0f) = 1.25f
 // NOTE: The name fraction clashes with an ENUM in MAC XCode CarbonCore script.h !
 static inline Vec4f fraction(Vec4f const & a) {
-    Vec4ui t1 = _mm_castps_si128(a);   // reinterpret as 32-bit integer
+    Vec4ui t1 = nsimd::reinterpret<pack128_4ui_t>(pack4f_t(a));   // reinterpret as 32-bit integer
     Vec4ui t2 = Vec4ui((t1 & 0x007FFFFF) | 0x3F800000); // set exponent to 0 + bias
-    return _mm_castsi128_ps(t2);
+    return nsimd::reinterpret<pack4f_t>(pack128_4ui_t(t2));;
 }
 
 // Fast calculation of pow(2,n) with n integer
@@ -952,12 +949,9 @@ static inline Vec4f fraction(Vec4f const & a) {
 // n <= -127 gives 0.0f
 // This function will never produce denormals, and never raise exceptions
 static inline Vec4f exp2(Vec4i const & n) {
-    Vec4i t1 = max(n,  -0x7F);         // limit to allowed range
-    Vec4i t2 = min(t1,  0x80);
-    Vec4i t3 = t2 + 0x7F;              // add bias
-    Vec4i t4 = t3 << 23;               // put exponent into position 23
-    return _mm_castsi128_ps(t4);       // reinterpret as float
+    return nsimd::exp2_u35(nsimd::reinterpret<pack4f_t>(pack128_4i_t(n)));
 }
+
 //static Vec4f exp2(Vec4f const & x); // defined in vectormath_exp.h
 
 
@@ -1021,15 +1015,15 @@ static inline void reset_control_word() {
 // Note that sign_bit(Vec4f(-0.0f)) gives true, while Vec4f(-0.0f) < Vec4f(0.0f) gives false
 // (the underscore in the name avoids a conflict with a macro in Intel's mathimf.h)
 static inline Vec4fb sign_bit(Vec4f const & a) {
-    Vec4i t1 = _mm_castps_si128(a);    // reinterpret as 32-bit integer
+    Vec4i t1 = nsimd::reinterpret<pack128_4i_t>(pack4f_t(a));    // reinterpret as 32-bit integer
     Vec4i t2 = t1 >> 31;               // extend sign bit
-    return _mm_castsi128_ps(t2);       // reinterpret as 32-bit Boolean
+    return nsimd::reinterpretl<packl4f_t>(nsimd::to_logical(pack128_4i_t(t2)));       // reinterpret as 32-bit Boolean
 }
 
 // Function sign_combine: changes the sign of a when b has the sign bit set
 // same as select(sign_bit(b), -a, a)
 static inline Vec4f sign_combine(Vec4f const & a, Vec4f const & b) {
-    Vec4f signmask = _mm_castsi128_ps(constant4ui<0x80000000,0x80000000,0x80000000,0x80000000>());  // -0.0
+    Vec4f signmask = nsimd::reinterpret<pack4f_t>(constant4ui<0x80000000,0x80000000,0x80000000,0x80000000>());  // -0.0
     return a ^ (b & signmask);
 }
 
@@ -1037,62 +1031,48 @@ static inline Vec4f sign_combine(Vec4f const & a, Vec4f const & b) {
 // false for INF and NAN
 // (the underscore in the name avoids a conflict with a macro in Intel's mathimf.h)
 static inline Vec4fb is_finite(Vec4f const & a) {
-    Vec4i t1 = _mm_castps_si128(a);    // reinterpret as 32-bit integer
+    Vec4i t1 = nsimd::reinterpret<pack128_4i_t>(pack4f_t(a));    // reinterpret as 32-bit integer
     Vec4i t2 = t1 << 1;                // shift out sign bit
-    Vec4i t3 = Vec4i(t2 & 0xFF000000) != 0xFF000000; // exponent field is not all 1s
-    return Vec4ib(t3);
+    return Vec4ib(Vec4i(t2 & 0xFF000000) != 0xFF000000); // exponent field is not all 1s
 }
 
 // Function is_inf: gives true for elements that are +INF or -INF
 // false for finite numbers and NAN
 // (the underscore in the name avoids a conflict with a macro in Intel's mathimf.h)
 static inline Vec4fb is_inf(Vec4f const & a) {
-    Vec4i t1 = _mm_castps_si128(a);    // reinterpret as 32-bit integer
-    Vec4i t2 = t1 << 1;                // shift out sign bit
-    return t2 == Vec4i(0xFF000000);    // exponent is all 1s, fraction is 0
+    return nsimd::isinf((pack4f_t)a);
 }
 
 // Function is_nan: gives true for elements that are +NAN or -NAN
 // false for finite numbers and +/-INF
 // (the underscore in the name avoids a conflict with a macro in Intel's mathimf.h)
 static inline Vec4fb is_nan(Vec4f const & a) {
-    Vec4i t1 = _mm_castps_si128(a);    // reinterpret as 32-bit integer
-    Vec4i t2 = t1 << 1;                // shift out sign bit
-    Vec4i t3 = 0xFF000000;             // exponent mask
-    Vec4i t4 = t2 & t3;                // exponent
-    Vec4i t5 = _mm_andnot_si128(t3,t2);// fraction
-    return Vec4ib((t4 == t3) & (t5 != 0));// exponent = all 1s and fraction != 0
+    return nsimd::isnan((pack4f_t)a);
 }
 
 // Function is_subnormal: gives true for elements that are denormal (subnormal)
 // false for finite numbers, zero, NAN and INF
 static inline Vec4fb is_subnormal(Vec4f const & a) {
-    Vec4i t1 = _mm_castps_si128(a);    // reinterpret as 32-bit integer
-    Vec4i t2 = t1 << 1;                // shift out sign bit
-    Vec4i t3 = 0xFF000000;             // exponent mask
-    Vec4i t4 = t2 & t3;                // exponent
-    Vec4i t5 = _mm_andnot_si128(t3,t2);// fraction
-    return Vec4ib((t4 == 0) & (t5 != 0));// exponent = 0 and fraction != 0
+    return nsimd::isnormal((pack4f_t)a);
 }
 
 // Function is_zero_or_subnormal: gives true for elements that are zero or subnormal (denormal)
 // false for finite numbers, NAN and INF
 static inline Vec4fb is_zero_or_subnormal(Vec4f const & a) {
-    Vec4i t = _mm_castps_si128(a);     // reinterpret as 32-bit integer
+    Vec4i t = nsimd::reinterpret<pack128_4i_t>(pack4f_t(a));     // reinterpret as 32-bit integer
           t &= 0x7F800000;             // isolate exponent
     return t == 0;                     // exponent = 0
 }
 
 // Function infinite4f: returns a vector where all elements are +INF
 static inline Vec4f infinite4f() {
-    return _mm_castsi128_ps(_mm_set1_epi32(0x7F800000));
+    return nsimd::reinterpret<pack4f_t>(nsimd::set1<pack128_4i_t>(0x7F800000));
 }
 
 // Function nan4f: returns a vector where all elements are NAN (quiet)
 static inline Vec4f nan4f(int n = 0x10) {
-    return _mm_castsi128_ps(_mm_set1_epi32(0x7FC00000 + n));
+    return nsimd::reinterpret<pack4f_t>(nsimd::set1<pack128_4i_t>(0x7FC00000 + n));
 }
-
 
 /*****************************************************************************
 *
@@ -1137,47 +1117,9 @@ static inline Vec4f nan4f(int n = 0x10) {
 // permute vector Vec4f
 template <int i0, int i1, int i2, int i3>
 static inline Vec4f permute4f(Vec4f const & a) {
-    // is shuffling needed
-    const bool do_shuffle = (i0 > 0) || (i1 != 1 && i1 >= 0) || (i2 != 2 && i2 >= 0) || (i3 != 3 && i3 >= 0);
-    // is zeroing needed
-    const bool do_zero    = (i0 | i1 | i2 | i3) < 0 && ((i0 | i1 | i2 | i3) & 0x80);
-
-    if (!do_shuffle && !do_zero) {
-        return a;                                          // trivial case: do nothing
-    }
-    if (do_zero && !do_shuffle) {                          // zeroing, not shuffling
-        if ((i0 & i1 & i2 & i3) < 0) return _mm_setzero_ps(); // zero everything
-        // zero some elements
-        __m128i mask1 = constant4i< -int(i0>=0), -int(i1>=0), -int(i2>=0), -int(i3>=0) >();
-        return  _mm_and_ps(a,_mm_castsi128_ps(mask1));     // zero with AND mask
-    }
-    if (do_shuffle && !do_zero) {                          // shuffling, not zeroing        
-        return _mm_shuffle_ps(a, a, (i0&3) | (i1&3)<<2 | (i2&3)<<4 | (i3&3)<<6);
-    }
-    // both shuffle and zero
-    if ((i0 & i1) < 0 && (i2 | i3) >= 0) {                 // zero low half, shuffle high half
-        return _mm_shuffle_ps(_mm_setzero_ps(), a, (i2&3)<<4 | (i3&3)<<6);
-    }
-    if ((i0 | i1) >= 0 && (i2 & i3) < 0) {                 // shuffle low half, zero high half
-        return _mm_shuffle_ps(a, _mm_setzero_ps(), (i0&3) | (i1&3)<<2);
-    }
-#if  INSTRSET >= 4  // SSSE3
-    // With SSSE3 we can do both with the PSHUFB instruction
-    const int j0 = (i0 & 3) << 2;
-    const int j1 = (i1 & 3) << 2;
-    const int j2 = (i2 & 3) << 2;
-    const int j3 = (i3 & 3) << 2;
-    __m128i mask2 = constant4i <
-        i0 < 0 ? -1 : j0 | (j0+1)<<8 | (j0+2)<<16 | (j0+3) << 24,
-        i1 < 0 ? -1 : j1 | (j1+1)<<8 | (j1+2)<<16 | (j1+3) << 24,
-        i2 < 0 ? -1 : j2 | (j2+1)<<8 | (j2+2)<<16 | (j2+3) << 24,
-        i3 < 0 ? -1 : j3 | (j3+1)<<8 | (j3+2)<<16 | (j3+3) << 24 > ();
-    return _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(a),mask2));
-#else
-    __m128 t1 = _mm_shuffle_ps(a, a, (i0&3) | (i1&3)<<2 | (i2&3)<<4 | (i3&3)<<6); // shuffle
-    __m128i mask3 = constant4i< -int(i0>=0), -int(i1>=0), -int(i2>=0), -int(i3>=0) >();
-    return _mm_and_ps(t1,_mm_castsi128_ps(mask3));     // zero with AND mask
-#endif
+    float idx[4] = {float(i0), float(i1), float(i2), float(i3)};
+    pack4f_t index = nsimd::loadu<pack4f_t>(idx);
+    return nsimd_common::lookup4<pack4f_t,float>(index, a);
 }
 
 
@@ -1289,35 +1231,36 @@ static inline Vec4f change_sign(Vec4f const & a) {
 
 class Vec2d {
 protected:
-    __m128d xmm; // double vector
+    pack2d_t xmm; // double vector
 public:
     // Default constructor:
     Vec2d() {
     }
     // Constructor to broadcast the same value into all elements:
     Vec2d(double d) {
-        xmm = _mm_set1_pd(d);
+        xmm = nsimd::set1<pack2d_t>(d);
     }
     // Constructor to build from all elements:
     Vec2d(double d0, double d1) {
-        xmm = _mm_setr_pd(d0, d1); 
+        double data[2] = {d0, d1};
+        xmm = nsimd::loadu<pack2d_t>(data); 
     }
-    // Constructor to convert from type __m128d used in intrinsics:
-    Vec2d(__m128d const & x) {
+    // Constructor to convert from type pack2d_t used in intrinsics:
+    Vec2d(pack2d_t const & x) {
         xmm = x;
     }
-    // Assignment operator to convert from type __m128d used in intrinsics:
-    Vec2d & operator = (__m128d const & x) {
+    // Assignment operator to convert from type pack2d_t used in intrinsics:
+    Vec2d & operator = (pack2d_t const & x) {
         xmm = x;
         return *this;
     }
     // Type cast operator to convert to __m128d used in intrinsics
-    operator __m128d() const {
+    operator pack2d_t() const {
         return xmm;
     }
     // Member function to load from array (unaligned)
     Vec2d & load(double const * p) {
-        xmm = _mm_loadu_pd(p);
+        xmm = nsimd::loadu<pack2d_t>(p);
         return *this;
     }
     // Member function to load from array, aligned by 16
@@ -1326,12 +1269,12 @@ public:
     // You may use load_a instead of load if you are certain that p points to an address
     // divisible by 16.
     Vec2d const & load_a(double const * p) {
-        xmm = _mm_load_pd(p);
+        xmm = nsimd::loada<pack2d_t>(p);
         return *this;
     }
     // Member function to store into array (unaligned)
     void store(double * p) const {
-        _mm_storeu_pd(p, xmm);
+        nsimd::storeu(p, xmm);
     }
     // Member function to store into array, aligned by 16
     // "store_a" is faster than "store" on older Intel processors (Pentium 4, Pentium M, Core 1,
@@ -1339,45 +1282,26 @@ public:
     // You may use store_a instead of store if you are certain that p points to an address
     // divisible by 16.
     void store_a(double * p) const {
-        _mm_store_pd(p, xmm);
+        nsimd::storea(p, xmm);
     }
     // Partial load. Load n elements and set the rest to 0
     Vec2d & load_partial(int n, double const * p) {
-        if (n == 1) {
-            xmm = _mm_load_sd(p);
-        }
-        else if (n == 2) {
-            load(p);
-        }
-        else {
-            xmm = _mm_setzero_pd();
-        }
+        xmm = nsimd_common::load_partial<pack2d_t, packl2d_t, double>(p, n);
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, double * p) const {
-        if (n == 1) {
-            _mm_store_sd(p, xmm);
-        }
-        else if (n == 2) {
-            store(p);
-        }
+        nsimd_common::store_partial<pack2d_t, packl2d_t, double>(p, n, xmm);
     }
     // cut off vector to n elements. The last 4-n elements are set to zero
     Vec2d & cutoff(int n) {
-        xmm = _mm_castps_pd(Vec4f(_mm_castpd_ps(xmm)).cutoff(n*2));
+        xmm = nsimd_common::cutoff<pack2d_t, packl2d_t, double>(xmm, n);
         return *this;
     }
     // Member function to change a single element in vector
     // Note: This function is inefficient. Use load function if changing more than one element
     Vec2d const & insert(uint32_t index, double value) {
-        __m128d v2 = _mm_set_sd(value);
-        if (index == 0) {
-            xmm = _mm_shuffle_pd(v2,xmm,2);
-        }
-        else {
-            xmm = _mm_shuffle_pd(xmm,v2,0);
-        }
+        xmm = nsimd_common::set_bit<pack2d_t, double>(index, value, xmm);
         return *this;
     };
     // Member function extract a single element from vector
@@ -1405,7 +1329,7 @@ public:
 
 // vector operator + : add element by element
 static inline Vec2d operator + (Vec2d const & a, Vec2d const & b) {
-    return _mm_add_pd(a, b);
+    return nsimd::add(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator + : add vector and scalar
@@ -1437,7 +1361,7 @@ static inline Vec2d & operator ++ (Vec2d & a) {
 
 // vector operator - : subtract element by element
 static inline Vec2d operator - (Vec2d const & a, Vec2d const & b) {
-    return _mm_sub_pd(a, b);
+    return nsimd::sub(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator - : subtract vector and scalar
@@ -1451,7 +1375,7 @@ static inline Vec2d operator - (double a, Vec2d const & b) {
 // vector operator - : unary minus
 // Change sign bit, even for 0, INF and NAN
 static inline Vec2d operator - (Vec2d const & a) {
-    return _mm_xor_pd(a, _mm_castsi128_pd(_mm_setr_epi32(0,0x80000000,0,0x80000000)));
+    return nsimd::xorb(pack2d_t(a), nsimd::set1<pack2d_t>(0.0));
 }
 
 // vector operator -= : subtract
@@ -1475,7 +1399,7 @@ static inline Vec2d & operator -- (Vec2d & a) {
 
 // vector operator * : multiply element by element
 static inline Vec2d operator * (Vec2d const & a, Vec2d const & b) {
-    return _mm_mul_pd(a, b);
+    return nsimd::mul(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator * : multiply vector and scalar
@@ -1494,7 +1418,7 @@ static inline Vec2d & operator *= (Vec2d & a, Vec2d const & b) {
 
 // vector operator / : divide all elements by same integer
 static inline Vec2d operator / (Vec2d const & a, Vec2d const & b) {
-    return _mm_div_pd(a, b);
+    return nsimd::div(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator / : divide vector and scalar
@@ -1513,22 +1437,22 @@ static inline Vec2d & operator /= (Vec2d & a, Vec2d const & b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec2db operator == (Vec2d const & a, Vec2d const & b) {
-    return _mm_cmpeq_pd(a, b);
+    return nsimd::eq(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec2db operator != (Vec2d const & a, Vec2d const & b) {
-    return _mm_cmpneq_pd(a, b);
+    return nsimd::ne(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator < : returns true for elements for which a < b
 static inline Vec2db operator < (Vec2d const & a, Vec2d const & b) {
-    return _mm_cmplt_pd(a, b);
+    return nsimd::lt(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator <= : returns true for elements for which a <= b
 static inline Vec2db operator <= (Vec2d const & a, Vec2d const & b) {
-    return _mm_cmple_pd(a, b);
+    return nsimd::le(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator > : returns true for elements for which a > b
@@ -1545,7 +1469,7 @@ static inline Vec2db operator >= (Vec2d const & a, Vec2d const & b) {
 
 // vector operator & : bitwise and
 static inline Vec2d operator & (Vec2d const & a, Vec2d const & b) {
-    return _mm_and_pd(a, b);
+    return nsimd::andb(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator &= : bitwise and
@@ -1556,15 +1480,15 @@ static inline Vec2d & operator &= (Vec2d & a, Vec2d const & b) {
 
 // vector operator & : bitwise and of Vec2d and Vec2db
 static inline Vec2d operator & (Vec2d const & a, Vec2db const & b) {
-    return _mm_and_pd(a, b);
+    return nsimd::andb(pack2d_t(a), pack2d_t(b));
 }
 static inline Vec2d operator & (Vec2db const & a, Vec2d const & b) {
-    return _mm_and_pd(a, b);
+    return nsimd::andb(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator | : bitwise or
 static inline Vec2d operator | (Vec2d const & a, Vec2d const & b) {
-    return _mm_or_pd(a, b);
+    return nsimd::orb(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator |= : bitwise or
@@ -1575,7 +1499,7 @@ static inline Vec2d & operator |= (Vec2d & a, Vec2d const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2d operator ^ (Vec2d const & a, Vec2d const & b) {
-    return _mm_xor_pd(a, b);
+    return nsimd::xorb(pack2d_t(a), pack2d_t(b));
 }
 
 // vector operator ^= : bitwise xor
@@ -1619,42 +1543,33 @@ static inline Vec2d if_mul (Vec2db const & f, Vec2d const & a, Vec2d const & b) 
 
 // Horizontal add: Calculates the sum of all vector elements.
 static inline double horizontal_add (Vec2d const & a) {
-#if  INSTRSET >= 3  // SSE3
-    __m128d t1 = _mm_hadd_pd(a,a);
-    return _mm_cvtsd_f64(t1);        
-#else
-    __m128  t0 = _mm_castpd_ps(a);
-    __m128d t1 = _mm_castps_pd(_mm_movehl_ps(t0,t0));
-    __m128d t2 = _mm_add_sd(a,t1);
-    return _mm_cvtsd_f64(t2);
-#endif
+    return nsimd::addv((pack2d_t)a);
 }
 
 // function max: a > b ? a : b
 static inline Vec2d max(Vec2d const & a, Vec2d const & b) {
-    return _mm_max_pd(a,b);
+    return nsimd::max((pack2d_t)a,(pack2d_t)b);
 }
 
 // function min: a < b ? a : b
 static inline Vec2d min(Vec2d const & a, Vec2d const & b) {
-    return _mm_min_pd(a,b);
+    return nsimd::min((pack2d_t)a,(pack2d_t)b);
 }
 
 // function abs: absolute value
 // Removes sign bit, even for -0.0f, -INF and -NAN
 static inline Vec2d abs(Vec2d const & a) {
-    __m128d mask = _mm_castsi128_pd(_mm_setr_epi32(-1,0x7FFFFFFF,-1,0x7FFFFFFF));
-    return _mm_and_pd(a,mask);
+    return nsimd::abs((pack2d_t)a);
 }
 
 // function sqrt: square root
 static inline Vec2d sqrt(Vec2d const & a) {
-    return _mm_sqrt_pd(a);
+    return nsimd::sqrt((pack2d_t)a);
 }
 
 // function square: a * a
 static inline Vec2d square(Vec2d const & a) {
-    return a * a;
+    return nsimd::min((pack2d_t)a,(pack2d_t)a);
 }
 
 // pow(Vec2d, int):
@@ -1732,78 +1647,31 @@ static inline Vec2d pow(Vec2d const & a, Const_int_t<n>) {
 
 
 // avoid unsafe optimization in function round
-#if defined(__GNUC__) && !defined(__INTEL_COMPILER) && !defined(__clang__) && INSTRSET < 5
-static inline Vec2d round(Vec2d const & a) __attribute__ ((optimize("-fno-unsafe-math-optimizations")));
-#elif defined (FLOAT_CONTROL_PRECISE_FOR_ROUND)
-#pragma float_control(push) 
-#pragma float_control(precise,on)
-#endif
-// function round: round to nearest integer (even). (result as double vector)
-static inline Vec2d round(Vec2d const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_pd(a, 0+8);
-#else // SSE2. Use magic number method
-    // Note: assume MXCSR control register is set to rounding
-    // (don't use conversion to int, it will limit the value to +/- 2^31)
-    Vec2d signmask    = _mm_castsi128_pd(constant4ui<0,0x80000000,0,0x80000000>());  // -0.0
-    Vec2d magic       = _mm_castsi128_pd(constant4ui<0,0x43300000,0,0x43300000>());  // magic number = 2^52
-    Vec2d sign        = _mm_and_pd(a, signmask);                                    // signbit of a
-    Vec2d signedmagic = _mm_or_pd(magic, sign);                                     // magic number with sign of a
-    return a + signedmagic - signedmagic;                                           // round by adding magic number
-#endif
+static inline Vec2d round(Vec2d const & a)
+{
+    return nsimd::round_to_even((pack2d_t)a);
 }
-#if defined (FLOAT_CONTROL_PRECISE_FOR_ROUND)
-#pragma float_control(pop)
-#endif
 
 // function truncate: round towards zero. (result as double vector)
 static inline Vec2d truncate(Vec2d const & a) {
-// (note: may fail on MS Visual Studio 2008, works in later versions)
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_pd(a, 3+8);
-#else  // SSE2. Use magic number method (conversion to int would limit the value to 2^31)
-    uint32_t t1 = _mm_getcsr();        // MXCSR
-    uint32_t t2 = t1 | (3 << 13);      // bit 13-14 = 11
-    _mm_setcsr(t2);                    // change MXCSR
-    Vec2d r = round(a);                // use magic number method
-    _mm_setcsr(t1);                    // restore MXCSR
-    return r;
-#endif
+    return nsimd::trunc((pack2d_t)a);
 }
 
 // function floor: round towards minus infinity. (result as double vector)
 // (note: may fail on MS Visual Studio 2008, works in later versions)
 static inline Vec2d floor(Vec2d const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_pd(a, 1+8);
-#else  // SSE2. Use magic number method (conversion to int would limit the value to 2^31)
-    uint32_t t1 = _mm_getcsr();        // MXCSR
-    uint32_t t2 = t1 | (1 << 13);      // bit 13-14 = 01
-    _mm_setcsr(t2);                    // change MXCSR
-    Vec2d r = round(a);                // use magic number method
-    _mm_setcsr(t1);                    // restore MXCSR
-    return r;
-#endif
+    return nsimd::floor((pack2d_t)a);
 }
 
 // function ceil: round towards plus infinity. (result as double vector)
 static inline Vec2d ceil(Vec2d const & a) {
-#if INSTRSET >= 5   // SSE4.1 supported
-    return _mm_round_pd(a, 2+8);
-#else  // SSE2. Use magic number method (conversion to int would limit the value to 2^31)
-    uint32_t t1 = _mm_getcsr();        // MXCSR
-    uint32_t t2 = t1 | (2 << 13);      // bit 13-14 = 10
-    _mm_setcsr(t2);                    // change MXCSR
-    Vec2d r = round(a);                // use magic number method
-    _mm_setcsr(t1);                    // restore MXCSR
-    return r;
-#endif
+    return nsimd::ceil((pack2d_t)a);
 }
 
 // function truncate_to_int: round towards zero.
 static inline Vec4i truncate_to_int(Vec2d const & a, Vec2d const & b) {
-    Vec4i t1 = _mm_cvttpd_epi32(a);
-    Vec4i t2 = _mm_cvttpd_epi32(b);
+    Vec4i t1 = Vec4i(nsimd::cvt<pack128_8i_t>((pack2d_t)a));
+    Vec4i t2 = Vec4i(nsimd::cvt<pack128_8i_t>((pack2d_t)b));
     return blend4i<0,1,4,5> (t1, t2);
 }
 
@@ -1811,104 +1679,75 @@ static inline Vec4i truncate_to_int(Vec2d const & a, Vec2d const & b) {
 // result as 32-bit integer vector
 static inline Vec4i round_to_int(Vec2d const & a, Vec2d const & b) {
     // Note: assume MXCSR control register is set to rounding
-    Vec4i t1 = _mm_cvtpd_epi32(a);
-    Vec4i t2 = _mm_cvtpd_epi32(b);
+    Vec4i t1 = Vec4i(nsimd::cvt<pack128_8i_t>((pack2d_t)a));
+    Vec4i t2 = Vec4i(nsimd::cvt<pack128_8i_t>((pack2d_t)b));
     return blend4i<0,1,4,5> (t1, t2);
 }
 // function round_to_int: round to nearest integer (even).
 // result as 32-bit integer vector. Upper two values of result are 0
 static inline Vec4i round_to_int(Vec2d const & a) {
-    Vec4i t1 = _mm_cvtpd_epi32(a);
+    Vec4i t1 = Vec4i(nsimd::cvt<pack128_8i_t>((pack2d_t)a));
     return t1;
 }
 
 // function truncate_to_int64: round towards zero. (inefficient)
 static inline Vec2q truncate_to_int64(Vec2d const & a) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
-    //return _mm_maskz_cvttpd_epi64( __mmask8(0xFF), a);
-    return _mm_cvttpd_epi64(a);
-#else
     double aa[2];
     a.store(aa);
     return Vec2q(int64_t(aa[0]), int64_t(aa[1]));
-#endif
 }
 
 // function truncate_to_int64_limited: round towards zero. (inefficient)
 // result as 64-bit integer vector, but with limited range. Deprecated!
 static inline Vec2q truncate_to_int64_limited(Vec2d const & a) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
-    return truncate_to_int64(a);
-#else
     // Note: assume MXCSR control register is set to rounding
-    Vec4i t1 = _mm_cvttpd_epi32(a);
+    Vec4i t1 = Vec4i(nsimd::cvt<pack128_8i_t>((pack2d_t)a));
     return extend_low(t1);
-#endif
 }
 
 // function round_to_int64: round to nearest or even. (inefficient)
 static inline Vec2q round_to_int64(Vec2d const & a) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
-    return _mm_cvtpd_epi64(a);
-#else
-    return truncate_to_int64(round(a));
-#endif
+    return Vec2q(nsimd::cvt<pack128_4i_t>((pack2d_t)a));
 }
 
 // function round_to_int: round to nearest integer (even)
 // result as 64-bit integer vector, but with limited range. Deprecated!
 static inline Vec2q round_to_int64_limited(Vec2d const & a) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
     return round_to_int64(a);
-#else
-    // Note: assume MXCSR control register is set to rounding
-    Vec4i t1 = _mm_cvtpd_epi32(a);
-    return extend_low(t1);
 #endif
 }
 
 // function to_double: convert integer vector elements to double vector (inefficient)
 static inline Vec2d to_double(Vec2q const & a) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
-    return _mm_maskz_cvtepi64_pd( __mmask8(0xFF), a);
-#else
-    int64_t aa[2];
-    a.store(aa);
-    return Vec2d(double(aa[0]), double(aa[1]));
-#endif
+    return Vec2d(nsimd::cvt<pack2d_t>((pack128_4i_t)a));
 }
 
 // function to_double_limited: convert integer vector elements to double vector
 // limited to abs(x) < 2^31. Deprecated!
 static inline Vec2d to_double_limited(Vec2q const & x) {
-#if defined (__AVX512DQ__) && defined (__AVX512VL__)
     return to_double(x);
-#else
-    Vec4i compressed = permute4i<0,2,-256,-256>(Vec4i(x));
-    return _mm_cvtepi32_pd(compressed);
-#endif
 }
 
 // function to_double_low: convert integer vector elements [0] and [1] to double vector
 static inline Vec2d to_double_low(Vec4i const & a) {
-    return _mm_cvtepi32_pd(a);
+    return Vec2d(nsimd::cvt<pack2d_t>((pack128_4i_t)a));
 }
 
 // function to_double_high: convert integer vector elements [2] and [3] to double vector
 static inline Vec2d to_double_high(Vec4i const & a) {
-    return to_double_low(_mm_srli_si128(a,8));
+    return to_double_low(nsimd::shr((pack128_4i_t)a,8));
 }
 
 // function compress: convert two Vec2d to one Vec4f
 static inline Vec4f compress (Vec2d const & low, Vec2d const & high) {
-    Vec4f t1 = _mm_cvtpd_ps(low);
-    Vec4f t2 = _mm_cvtpd_ps(high);
+    Vec4f t1 = Vec4f(nsimd::cvt<pack4f_t>((pack2d_t)low));
+    Vec4f t2 = Vec4f(nsimd::cvt<pack4f_t>((pack2d_t)high));
     return blend4f<0,1,4,5> (t1, t2);
 }
 
 // Function extend_low : convert Vec4f vector elements [0] and [1] to Vec2d
 static inline Vec2d extend_low (Vec4f const & a) {
-    return _mm_cvtps_pd(a);
+    return Vec2d(nsimd::cvt<pack2d_t>((pack4f_t)a));
 }
 
 // Function extend_high : convert Vec4f vector elements [2] and [3] to Vec2d
@@ -1921,57 +1760,24 @@ static inline Vec2d extend_high (Vec4f const & a) {
 
 // Multiply and add
 static inline Vec2d mul_add(Vec2d const & a, Vec2d const & b, Vec2d const & c) {
-#ifdef __FMA__
-    return _mm_fmadd_pd(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_macc_pd(a, b, c);
-#else
-    return a * b + c;
-#endif
+    return nsimd::fma((pack2d_t)a, (pack2d_t)b, (pack2d_t)c);
 }
 
 // Multiply and subtract
 static inline Vec2d mul_sub(Vec2d const & a, Vec2d const & b, Vec2d const & c) {
-#ifdef __FMA__
-    return _mm_fmsub_pd(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_msub_pd(a, b, c);
-#else
-    return a * b - c;
-#endif
+    return nsimd::fms((pack2d_t)a, (pack2d_t)b, (pack2d_t)c);
 }
 
 // Multiply and inverse subtract
 static inline Vec2d nmul_add(Vec2d const & a, Vec2d const & b, Vec2d const & c) {
-#ifdef __FMA__
-    return _mm_fnmadd_pd(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_nmacc_pd(a, b, c);
-#else
-    return c - a * b;
-#endif
+return nsimd::fnma((pack2d_t)a, (pack2d_t)b, (pack2d_t)c);
 }
 
 
 // Multiply and subtract with extra precision on the intermediate calculations, 
 // even if FMA instructions not supported, using Veltkamp-Dekker split
 static inline Vec2d mul_sub_x(Vec2d const & a, Vec2d const & b, Vec2d const & c) {
-#ifdef __FMA__
-    return _mm_fmsub_pd(a, b, c);
-#elif defined (__FMA4__)
-    return _mm_msub_pd(a, b, c);
-#else
-    // calculate a * b - c with extra precision
-    Vec2q upper_mask = -(1LL << 27);                       // mask to remove lower 27 bits
-    Vec2d a_high = a & Vec2d(_mm_castsi128_pd(upper_mask));// split into high and low parts
-    Vec2d b_high = b & Vec2d(_mm_castsi128_pd(upper_mask));
-    Vec2d a_low  = a - a_high;
-    Vec2d b_low  = b - b_high;
-    Vec2d r1 = a_high * b_high;                            // this product is exact
-    Vec2d r2 = r1 - c;                                     // subtract c from high product
-    Vec2d r3 = r2 + (a_high * b_low + b_high * a_low) + a_low * b_low; // add rest of product
-    return r3; // + ((r2 - r1) + c);
-#endif
+    return nsimd::fms((pack2d_t)a, (pack2d_t)b, (pack2d_t)c);
 }
 
 
@@ -2528,24 +2334,24 @@ static inline uint32_t horizontal_count(Vec2db const & x) {
 *****************************************************************************/
 
 // to_bits: convert boolean vector to integer bitfield
-static inline uint8_t to_bits(Vec4fb const & x) {
-    return to_bits(Vec4ib(x));
-}
-
-// to_Vec4fb: convert integer bitfield to boolean vector
-static inline Vec4fb to_Vec4fb(uint8_t x) {
-    return Vec4fb(to_Vec4ib(x));
-}
-
-// to_bits: convert boolean vector to integer bitfield
-static inline uint8_t to_bits(Vec2db const & x) {
-    return to_bits(Vec2qb(x));
-}
-
-// to_Vec2db: convert integer bitfield to boolean vector
-static inline Vec2db to_Vec2db(uint8_t x) {
-    return Vec2db(to_Vec2qb(x));
-}
+//static inline uint8_t to_bits(Vec4fb const & x) {
+//    return to_bits(Vec4ib(x));
+//}
+//
+//// to_Vec4fb: convert integer bitfield to boolean vector
+//static inline Vec4fb to_Vec4fb(uint8_t x) {
+//    return Vec4fb(to_Vec4ib(x));
+//}
+//
+//// to_bits: convert boolean vector to integer bitfield
+//static inline uint8_t to_bits(Vec2db const & x) {
+//    return to_bits(Vec2qb(x));
+//}
+//
+//// to_Vec2db: convert integer bitfield to boolean vector
+//static inline Vec2db to_Vec2db(uint8_t x) {
+//    return Vec2db(to_Vec2qb(x));
+//}
 
 #ifdef NSIMD_NAMESPACE
 }

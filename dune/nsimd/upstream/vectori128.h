@@ -41,6 +41,8 @@
 *
 * (c) Copyright 2012-2017 GNU General Public License http://www.gnu.org/licenses
 *****************************************************************************/
+
+#pragma GCC diagnostic ignored "-Wnarrowing"
 #ifndef VECTORI128_H
 #define VECTORI128_H
 
@@ -226,16 +228,16 @@ static inline pack128_4ui_t constant4ui() {
 *****************************************************************************/
 // Select between two sources, byte by byte. Used in various functions and operators
 // Corresponds to this pseudocode:
-// for (int i = 0; i < 16; i++) result[i] = s[i] ? a[i] : b[i];
+// for (int i = 0; i < LEN; i++) result[i] = s[i] ? a[i] : b[i];
 // Each byte in s must be either 0 (false) or 0xFF (true). No other values are allowed.
 // The implementation depends on the instruction set: 
 // If SSE4.1 is supported then only bit 7 in each byte of s is checked, 
 // otherwise all bits in s are used.
-static inline pack128_16i_t selectb (pack128_16i_t const & s, pack128_16i_t const & a, pack128_16i_t const & b) {
-    return nsimd::if_else(nsimd::to_logical(b), a, s);
+
+template <typename PackL, typename Pack>
+static inline Pack selectb (PackL const & s, Pack const & a, Pack const & b) {
+    return nsimd::if_else1(s, a, b);
 }
-
-
 
 /*****************************************************************************
 *
@@ -257,6 +259,7 @@ static inline bool horizontal_or (Vec128b<PackT, T> const & a) {
 
 template <typename PackT, typename PacklT, typename T>
 class Vec128 : public Vec128b<PackT, T> {
+protected:
 using Vec128b<PackT, T>::xmm;
 public:
     // Default constructor:
@@ -334,22 +337,26 @@ public:
     // Default constructor:
     Vec16c() {
     }
+    
+    Vec16c(int value) {
+        xmm = nsimd::set1<pack128_16i_t>(int8_t(value));
+    }
     // Constructor to build from all elements:
     Vec16c(int8_t i0, int8_t i1, int8_t i2, int8_t i3, int8_t i4, int8_t i5, int8_t i6, int8_t i7,
         int8_t i8, int8_t i9, int8_t i10, int8_t i11, int8_t i12, int8_t i13, int8_t i14, int8_t i15) {
         int8_t vec[16] = {i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15};
         xmm = nsimd::loadu<pack128_16i_t>(vec);
     }
-    // Constructor to convert from type __m128i used in intrinsics:
+    // Constructor to convert from type pack128_16i_t used in intrinsics:
     Vec16c(pack128_16i_t const & x) {
         xmm = x;
     }
-    // Assignment operator to convert from type __m128i used in intrinsics:
+    // Assignment operator to convert from type pack128_16i_t used in intrinsics:
     Vec16c & operator = (pack128_16i_t const & x) {
         xmm = x;
         return *this;
     }
-    // Type cast operator to convert to __m128i used in intrinsics
+    // Type cast operator to convert to pack128_16i_t used in intrinsics
     operator pack128_16i_t() const {
         return xmm;
     }
@@ -366,24 +373,26 @@ public:
 
 class Vec16cb : public Vec128<packl128_16i_t, packl128_16i_t, int8_t> {
 public:
-    using Vec128<packl128_16i_t, packl128_16i_t, int8_t>::xmm;
     // Default constructor
     Vec16cb() {}
     // Constructor to build from all elements:
     Vec16cb(bool x0, bool x1, bool x2, bool x3, bool x4, bool x5, bool x6, bool x7,
         bool x8, bool x9, bool x10, bool x11, bool x12, bool x13, bool x14, bool x15) {     
-        int8_t vec[16] = {-(int)((int8_t)x0), -(int)((int8_t)x1), -(int)((int8_t)x2), -(int)((int8_t)x3), -(int)((int8_t)x4), -(int)((int8_t)x5), -(int)((int8_t)x6), -(int)((int8_t)x7), 
-            -(int)((int8_t)x8), -(int)((int8_t)x9), -(int)((int8_t)x10), -(int)((int8_t)x11), -(int)((int8_t)x12), -(int)((int8_t)x13), -(int)((int8_t)x14), -(int)((int8_t)x15)};
-        this->xmm = nsimd::loadla<packl128_16i_t>(vec);
+        int8_t vec[16] = {-x0, -x1, -x2, -x3, -x4, -x5, -x6, -x7, -x8, -x9, -x10, -x11, -x12, -x13, -x14, -x15};
+        xmm = nsimd::loadla<packl128_16i_t>(vec);
     }
-    // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec16cb & operator = (packl128_16i_t const & x) {
-        this->xmm = x;
+    // Constructor to convert from type pack128_16i_t used in intrinsics:
+    Vec16cb(packl128_16i_t const & x) {
+        xmm = x;
+    }
+    // Assignment operator to convert from type packl128_16i_t used in intrinsics:
+    Vec16cb & operator= (packl128_16i_t const & x) {
+        xmm = x;
         return *this;
     }
     // Constructor to broadcast scalar value:
     Vec16cb(bool b) {
-        this->xmm = nsimd::set1l<packl128_16i_t>(-int8_t(b));
+        xmm = nsimd::set1l<packl128_16i_t>(-int8_t(b));
     }
     // Assignment operator to broadcast scalar value:
     Vec16cb & operator = (bool b) {
@@ -400,9 +409,9 @@ public:
         store(x);
         return x[index & 0x0F] != 0;
     }
-    // Type cast operator to convert to __m128i used in intrinsics
+    // Type cast operator to convert to packl128_16i_t used in intrinsics
     operator packl128_16i_t() const {
-        return this->xmm;
+        return xmm;
     }
     
     static int size() {
@@ -418,7 +427,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec16cb operator & (Vec16cb const & a, Vec16cb const & b) {
-    return nsimd::andl(a, b);
+    return nsimd::andl((packl128_16i_t)a, (packl128_16i_t)b);
 }
 static inline Vec16cb operator && (Vec16cb const & a, Vec16cb const & b) {
     return a & b;
@@ -431,7 +440,7 @@ static inline Vec16cb & operator &= (Vec16cb & a, Vec16cb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec16cb operator | (Vec16cb const & a, Vec16cb const & b) {
-    return nsimd::orl(a, b);
+    return nsimd::orl(packl128_16i_t(a), packl128_16i_t(b));
 }
 static inline Vec16cb operator || (Vec16cb const & a, Vec16cb const & b) {
     return a | b;
@@ -444,7 +453,7 @@ static inline Vec16cb & operator |= (Vec16cb & a, Vec16cb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec16cb operator ^ (Vec16cb const & a, Vec16cb const & b) {
-    return nsimd::xorl(a, b);
+    return nsimd::xorl(packl128_16i_t(a), packl128_16i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec16cb & operator ^= (Vec16cb & a, Vec16cb const & b) {
@@ -454,7 +463,7 @@ static inline Vec16cb & operator ^= (Vec16cb & a, Vec16cb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec16cb operator ~ (Vec16cb const & a) {
-    return nsimd::notl(a);
+    return nsimd::notl(packl128_16i_t(a));
 }
 
 // vector operator ! : element not
@@ -464,19 +473,19 @@ static inline Vec16cb operator ! (Vec16cb const & a) {
 
 // vector function andnot
 static inline Vec16cb andnot (Vec16cb const & a, Vec16cb const & b) {
-    return nsimd::andnotl(a, b);
+    return nsimd::andnotl(packl128_16i_t(a), packl128_16i_t(b));
 }
 
 // Horizontal Boolean functions for Vec16cb
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec16cb const & a) {
-    return nsimd::all(a);
+    return nsimd::all(packl128_16i_t(a));
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec16cb const & a) {
-    return nsimd::any(a);
+    return nsimd::any(packl128_16i_t(a));
 } 
 
 
@@ -488,7 +497,7 @@ static inline bool horizontal_or(Vec16cb const & a) {
 
 // vector operator + : add element by element
 static inline Vec16c operator + (Vec16c const & a, Vec16c const & b) {
-    return nsimd::add(a, b);
+    return nsimd::add(pack128_16i_t(a), pack128_16i_t(b));
 }
 
 // vector operator += : add
@@ -500,24 +509,24 @@ static inline Vec16c & operator += (Vec16c & a, Vec16c const & b) {
 // postfix operator ++
 static inline Vec16c operator ++ (Vec16c & a, int) {
     Vec16c a0 = a;
-    a = a + 1;
+    a = nsimd::add(pack128_16i_t(a), nsimd::set1<pack128_16i_t>(int8_t(1)));
     return a0;
 }
 
 // prefix operator ++
 static inline Vec16c & operator ++ (Vec16c & a) {
-    a = a + 1;
+    a = nsimd::add(pack128_16i_t(a), nsimd::set1<pack128_16i_t>(int8_t(1)));
     return a;
 }
 
 // vector operator - : subtract element by element
 static inline Vec16c operator - (Vec16c const & a, Vec16c const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack128_16i_t(a), pack128_16i_t(b));
 }
 
 // vector operator - : unary minus
 static inline Vec16c operator - (Vec16c const & a) {
-    return nsimd::sub(nsimd::set1<pack128_16i_t>(a), a);
+    return nsimd::sub(nsimd::set1<pack128_16i_t>(int8_t(0)), pack128_16i_t(a));
 }
 
 // vector operator -= : add
@@ -529,19 +538,19 @@ static inline Vec16c & operator -= (Vec16c & a, Vec16c const & b) {
 // postfix operator --
 static inline Vec16c operator -- (Vec16c & a, int) {
     Vec16c a0 = a;
-    a = a - 1;
+    a = nsimd::sub(pack128_16i_t(a), nsimd::set1<pack128_16i_t>(int8_t(1)));
     return a0;
 }
 
 // prefix operator --
 static inline Vec16c & operator -- (Vec16c & a) {
-    a = a - 1;
+    a = nsimd::sub(pack128_16i_t(a), nsimd::set1<pack128_16i_t>(int8_t(1)));
     return a;
 }
 
 // vector operator * : multiply element by element
 static inline Vec16c operator * (Vec16c const & a, Vec16c const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack128_16i_t(a), pack128_16i_t(b));
 }
 
 // vector operator *= : multiply
@@ -552,85 +561,85 @@ static inline Vec16c & operator *= (Vec16c & a, Vec16c const & b) {
 
 // vector operator << : shift left all elements
 static inline Vec16c operator << (Vec16c const & a, int b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_16i_t(a), b);
 }
 
 // vector operator <<= : shift left
 static inline Vec16c & operator <<= (Vec16c & a, int b) {
-    a = nsimd::shl(a, b);
+    a = nsimd::shl(pack128_16i_t(a), b);
     return a;
 }
 
 // vector operator >> : shift right arithmetic all elements
 static inline Vec16c operator >> (Vec16c const & a, int b) {
-    return nsimd::shr(a, b);
+    return nsimd::shr(pack128_16i_t(a), b);
 }
 
 // vector operator >>= : shift right arithmetic
 static inline Vec16c & operator >>= (Vec16c & a, int b) {
-    a = nsimd::shr(a, b);
+    a = nsimd::shr(pack128_16i_t(a), b);
     return a;
 }
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec16cb operator == (Vec16c const & a, Vec16c const & b) {
-    return nsimd::eq(a,b);
+    return nsimd::eq(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec16cb operator != (Vec16c const & a, Vec16c const & b) {
-    return nsimd::ne(a,b);
+    return nsimd::ne(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // vector operator > : returns true for elements for which a > b (signed)
 static inline Vec16cb operator > (Vec16c const & a, Vec16c const & b) {
-    return nsimd::gt(a,b);
+    return nsimd::gt(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // vector operator < : returns true for elements for which a < b (signed)
 static inline Vec16cb operator < (Vec16c const & a, Vec16c const & b) {
-    return nsimd::lt(a, b);
+    return nsimd::lt(pack128_16i_t(a), pack128_16i_t(b));
 }
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec16cb operator >= (Vec16c const & a, Vec16c const & b) {
-    return nsimd::ge(a,b);
+    return nsimd::ge(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
 static inline Vec16cb operator <= (Vec16c const & a, Vec16c const & b) {
-    return nsimd::le(a,b);
+    return nsimd::le(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // vector operator & : bitwise and
 static inline Vec16c operator & (Vec16c const & a, Vec16c const & b) {
-    return nsimd::andb(a,b);
+    return nsimd::andb(pack128_16i_t(a),pack128_16i_t(b));
 }
 static inline Vec16c operator && (Vec16c const & a, Vec16c const & b) {
     return a & b;
 }
 // vector operator &= : bitwise and
 static inline Vec16c & operator &= (Vec16c & a, Vec16c const & b) {
-    a = nsimd::andb(a, b);
+    a = nsimd::andb(pack128_16i_t(a), pack128_16i_t(b));
     return a;
 }
 
 // vector operator | : bitwise or
 static inline Vec16c operator | (Vec16c const & a, Vec16c const & b) {
-    return nsimd::orb(a, b);
+    return nsimd::orb(pack128_16i_t(a), pack128_16i_t(b));
 }
 static inline Vec16c operator || (Vec16c const & a, Vec16c const & b) {
     return a | b;
 }
 // vector operator |= : bitwise or
 static inline Vec16c & operator |= (Vec16c & a, Vec16c const & b) {
-    a = nsimd::orb(a, b);
+    a = nsimd::orb(pack128_16i_t(a), pack128_16i_t(b));
     return a;
 }
 
 // vector operator ^ : bitwise xor
 static inline Vec16c operator ^ (Vec16c const & a, Vec16c const & b) {
-    return nsimd::xorb(a, b);
+    return nsimd::xorb(pack128_16i_t(a), pack128_16i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec16c & operator ^= (Vec16c & a, Vec16c const & b) {
@@ -640,12 +649,12 @@ static inline Vec16c & operator ^= (Vec16c & a, Vec16c const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec16c operator ~ (Vec16c const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_16i_t(a));
 }
 
 // vector operator ! : logical not, returns true for elements == 0
 static inline Vec16cb operator ! (Vec16c const & a) {
-    return nsimd::eq(a, nsimd::set1<pack128_16i_t>(char(0)));
+    return nsimd::eq(pack128_16i_t(a), nsimd::set1<pack128_16i_t>(char(0)));
 }
 
 // Functions for this class
@@ -665,51 +674,51 @@ static inline Vec16c if_add (Vec16cb const & f, Vec16c const & a, Vec16c const &
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int32_t horizontal_add (Vec16c const & a) {
-    return nsimd::addv(a);                                         // sign extend to 32 bits
+    return nsimd::addv(pack128_16i_t(a));                                         // sign extend to 32 bits
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Each element is sign-extended before addition to avoid overflow
 static inline int32_t horizontal_add_x (Vec16c const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_16i_t(a));
 }
 
 
 // function add_saturated: add element by element, signed with saturation
 static inline Vec16c add_saturated(Vec16c const & a, Vec16c const & b) {
-    return nsimd::adds(a,b);
+    return nsimd::adds(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // function sub_saturated: subtract element by element, signed with saturation
 static inline Vec16c sub_saturated(Vec16c const & a, Vec16c const & b) {
-    return nsimd::subs(a,b);
+    return nsimd::subs(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // function max: a > b ? a : b
 static inline Vec16c max(Vec16c const & a, Vec16c const & b) {
-    return nsimd::max(a,b);
+    return nsimd::max(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec16c min(Vec16c const & a, Vec16c const & b) {
-    return nsimd::min(a,b);
+    return nsimd::min(pack128_16i_t(a),pack128_16i_t(b));
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec16c abs(Vec16c const & a) {
-    return nsimd::abs(a);
+    return nsimd::abs(pack128_16i_t(a));
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec16c abs_saturated(Vec16c const & a) {
-    pack128_16i_t absa   = nsimd::abs(pack);
+    pack128_16i_t absa   = nsimd::abs((pack128_16i_t)a);
     return nsimd::adds(absa, nsimd::set1<pack128_16i_t>(char(0)));
 }
 
 // function rotate_left: rotate each element left by b bits 
 // Use negative count to rotate right
 static inline Vec16c rotate_left(Vec16c const & aa, int ba) {
-    return nsimd_common::rotate_left<pack128_16i_t>(a, b);
+    return nsimd_common::rotate_left<pack128_16i_t>(aa, ba);
 }
 
 
@@ -726,12 +735,12 @@ public:
     }
     // Constructor to broadcast the same value into all elements:
     Vec16uc(uint32_t i) {
-        xmm = nsimd::set1<pack128_16ui_t>((char)i);
+        xmm = nsimd::set1<pack128_16ui_t>((uint8_t)i);
     }
     // Constructor to build from all elements:
     Vec16uc(uint8_t i0, uint8_t i1, uint8_t i2, uint8_t i3, uint8_t i4, uint8_t i5, uint8_t i6, uint8_t i7,
         uint8_t i8, uint8_t i9, uint8_t i10, uint8_t i11, uint8_t i12, uint8_t i13, uint8_t i14, uint8_t i15) {
-        char data[16] = {i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15};
+        uint8_t data[16] = {i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11, i12, i13, i14, i15};
         xmm = nsimd::set1<pack128_16ui_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
@@ -744,22 +753,22 @@ public:
 
 // vector operator << : shift left all elements
 static inline Vec16uc operator << (Vec16uc const & a, uint32_t b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_16ui_t(a), b);
 }
 
 // vector operator << : shift left all elements
 static inline Vec16uc operator << (Vec16uc const & a, int32_t b) {
-    return  nsimd::shl(a, (uint32_t)b);
+    return  nsimd::shl(pack128_16ui_t(a), (uint32_t)b);
 }
 
 // vector operator >> : shift right logical all elements
 static inline Vec16uc operator >> (Vec16uc const & a, uint32_t b) {
-    return nsimd::shr(a, b);
+    return nsimd::shr(pack128_16ui_t(a), b);
 }
 
 // vector operator >> : shift right logical all elements
 static inline Vec16uc operator >> (Vec16uc const & a, int32_t b) {
-    return nsimd::shr(a, (uint32_t)b);
+    return nsimd::shr(pack128_16ui_t(a), (uint32_t)b);
 }
 
 // vector operator >>= : shift right logical
@@ -770,42 +779,42 @@ static inline Vec16uc & operator >>= (Vec16uc & a, int b) {
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec16cb operator >= (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::ge(a,b);
+    return nsimd::reinterpretl<packl128_16i_t>(nsimd::ge(pack128_16ui_t(a),pack128_16ui_t(b)));
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
 static inline Vec16cb operator <= (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::le(a,b);
+    return nsimd::reinterpretl<packl128_16i_t>(nsimd::le(pack128_16ui_t(a),pack128_16ui_t(b)));
 }
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec16cb operator > (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::gt(a,b);
+    return nsimd::reinterpretl<packl128_16i_t>(nsimd::gt(pack128_16ui_t(a),pack128_16ui_t(b)));
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
 static inline Vec16cb operator < (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::lt(a,b);
+    return nsimd::reinterpretl<packl128_16i_t>(nsimd::lt(pack128_16ui_t(a),pack128_16ui_t(b)));
 }
 
 // vector operator + : add
 static inline Vec16uc operator + (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::add(a,b);
+    return nsimd::add(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 
 // vector operator - : subtract
 static inline Vec16uc operator - (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::sub(a,b);
+    return nsimd::sub(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 
 // vector operator * : multiply
 static inline Vec16uc operator * (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::mul(a,b);
+    return nsimd::mul(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 
 // vector operator & : bitwise and
 static inline Vec16uc operator & (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::andb(a,b);
+    return nsimd::andb(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 static inline Vec16uc operator && (Vec16uc const & a, Vec16uc const & b) {
     return a & b;
@@ -813,7 +822,7 @@ static inline Vec16uc operator && (Vec16uc const & a, Vec16uc const & b) {
 
 // vector operator | : bitwise or
 static inline Vec16uc operator | (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::orb(a,b);
+    return nsimd::orb(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 static inline Vec16uc operator || (Vec16uc const & a, Vec16uc const & b) {
     return a | b;
@@ -821,12 +830,12 @@ static inline Vec16uc operator || (Vec16uc const & a, Vec16uc const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec16uc operator ^ (Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::xorb(a,b);
+    return nsimd::xorb(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 
 // vector operator ~ : bitwise not
 static inline Vec16uc operator ~ (Vec16uc const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_16ui_t(a));
 }
 
 // Functions for this class
@@ -848,33 +857,33 @@ static inline Vec16uc if_add (Vec16cb const & f, Vec16uc const & a, Vec16uc cons
 // Overflow will wrap around
 // (Note: horizontal_add_x(Vec16uc) is slightly faster)
 static inline uint32_t horizontal_add (Vec16uc const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_16ui_t(a));
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Each element is zero-extended before addition to avoid overflow
 static inline uint32_t horizontal_add_x (Vec16uc const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_16ui_t(a));
 }
 
 // function add_saturated: add element by element, unsigned with saturation
 static inline Vec16uc add_saturated(Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::adds(a, b);
+    return nsimd::adds(pack128_16ui_t(a), pack128_16ui_t(b));
 }
 
 // function sub_saturated: subtract element by element, unsigned with saturation
 static inline Vec16uc sub_saturated(Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::subs(a, b);
+    return nsimd::subs(pack128_16ui_t(a), pack128_16ui_t(b));
 }
 
 // function max: a > b ? a : b
 static inline Vec16uc max(Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::max(a,b);
+    return nsimd::max(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec16uc min(Vec16uc const & a, Vec16uc const & b) {
-    return nsimd::min(a,b);
+    return nsimd::min(pack128_16ui_t(a),pack128_16ui_t(b));
 }
 
 
@@ -885,7 +894,7 @@ static inline Vec16uc min(Vec16uc const & a, Vec16uc const & b) {
 *
 *****************************************************************************/
 
-class Vec8s : public Vec128<pack128_8i_t, packl128_i_t, int16_t> {
+class Vec8s : public Vec128<pack128_8i_t, packl128_8i_t, int16_t> {
 public:
     // Default constructor:
     Vec8s() {
@@ -899,16 +908,16 @@ public:
         int16_t data[8] = {i0, i1, i2, i3, i4, i5, i6, i7};
         xmm = nsimd::set1<pack128_8i_t>(data);
     }
-    // Constructor to convert from type __m128i used in intrinsics:
+    // Constructor to convert from type pack128_8i_t used in intrinsics:
     Vec8s(pack128_8i_t const & x) {
         xmm = x;
     }
-    // Assignment operator to convert from type __m128i used in intrinsics:
+    // Assignment operator to convert from type pack128_8i_t used in intrinsics:
     Vec8s & operator = (pack128_8i_t const & x) {
         xmm = x;
         return *this;
     }
-    // Type cast operator to convert to __m128i used in intrinsics
+    // Type cast operator to convert to pack128_8i_t used in intrinsics
     operator pack128_8i_t() const {
         return xmm;
     }
@@ -927,7 +936,7 @@ class Vec8sb : public Vec128<packl128_8i_t, packl128_8i_t, uint8_t> {
 public:
     // Constructor to build from all elements:
     Vec8sb(bool x0, bool x1, bool x2, bool x3, bool x4, bool x5, bool x6, bool x7) {
-        int16_t vec[8] = {-int16_t(x0), -int16_t(x1), -int16_t(x2), -int16_t(x3), -int16_t(x4), -int16_t(x5), -int16_t(x6), -int16_t(x7)};
+        int16_t vec[8] = {-x0, -x1, -x2, -x3, -x4, -x5, -x6, -x7};
         xmm = nsimd::loadla<packl128_8i_t>(vec);
     }
     // Default constructor:
@@ -958,7 +967,7 @@ public:
     // Member function extract a single element from vector
     // Note: This function is inefficient. Use store function if extracting more than one element
     bool extract(uint32_t index) const {
-        return nsimd_common::get_bit<packl128_8i_t, int16_t>(index, xmm);
+        return this->get_bit(index) != 0;
     }
 
     // Type cast operator to convert
@@ -976,33 +985,33 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec8sb operator & (Vec8sb const & a, Vec8sb const & b) {
-    return nsimd::andl(a,b);
+    return nsimd::andl(packl128_8i_t(a),packl128_8i_t(b));
 }
 static inline Vec8sb operator && (Vec8sb const & a, Vec8sb const & b) {
     return a & b;
 }
 // vector operator &= : bitwise and
 static inline Vec8sb & operator &= (Vec8sb & a, Vec8sb const & b) {
-    a = nsimd::andb(a,b);
+    a = nsimd::andl(packl128_8i_t(a),packl128_8i_t(b));
     return a;
 }
 
 // vector operator | : bitwise or
 static inline Vec8sb operator | (Vec8sb const & a, Vec8sb const & b) {
-    return nsimd::orl(a,b);
+    return nsimd::orl(packl128_8i_t(a),packl128_8i_t(b));
 }
 static inline Vec8sb operator || (Vec8sb const & a, Vec8sb const & b) {
     return a | b;
 }
 // vector operator |= : bitwise or
 static inline Vec8sb & operator |= (Vec8sb & a, Vec8sb const & b) {
-    a = nsimd::orl(a,b);
+    a = nsimd::orl(packl128_8i_t(a),packl128_8i_t(b));
     return a;
 }
 
 // vector operator ^ : bitwise xor
 static inline Vec8sb operator ^ (Vec8sb const & a, Vec8sb const & b) {
-    return nsimd::xorl(a,b);
+    return nsimd::xorl(packl128_8i_t(a),packl128_8i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec8sb & operator ^= (Vec8sb & a, Vec8sb const & b) {
@@ -1012,7 +1021,7 @@ static inline Vec8sb & operator ^= (Vec8sb & a, Vec8sb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec8sb operator ~ (Vec8sb const & a) {
-    return nsimd::notl(a);
+    return nsimd::notl(packl128_8i_t(a));
 }
 
 // vector operator ! : element not
@@ -1022,19 +1031,19 @@ static inline Vec8sb operator ! (Vec8sb const & a) {
 
 // vector function andnot
 static inline Vec8sb andnot (Vec8sb const & a, Vec8sb const & b) {
-    return nsimd::andnotl(a,b);
+    return nsimd::andnotl(packl128_8i_t(a),packl128_8i_t(b));
 }
 
 // Horizontal Boolean functions for Vec8sb
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec8sb const & a) {
-    return nsimd::all(a);
+    return nsimd::all(packl128_8i_t(a));
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec8sb const & a) {
-    return nsimd::any(a);
+    return nsimd::any(packl128_8i_t(a));
 }
 
 
@@ -1046,12 +1055,12 @@ static inline bool horizontal_or(Vec8sb const & a) {
 
 // vector operator + : add element by element
 static inline Vec8s operator + (Vec8s const & a, Vec8s const & b) {
-    return nsimd::add(a,b);
+    return nsimd::add(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // vector operator += : add
 static inline Vec8s & operator += (Vec8s & a, Vec8s const & b) {
-    a = nsimd::add(a,b);
+    a = nsimd::add(pack128_8i_t(a),pack128_8i_t(b));
     return a;
 }
 
@@ -1070,12 +1079,12 @@ static inline Vec8s & operator ++ (Vec8s & a) {
 
 // vector operator - : subtract element by element
 static inline Vec8s operator - (Vec8s const & a, Vec8s const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack128_8i_t(a), pack128_8i_t(b));
 }
 
 // vector operator - : unary minus
 static inline Vec8s operator - (Vec8s const & a) {
-    return nsimd::sub(nsimd::set1<pack128_8i_t>(short(0)), a);
+    return nsimd::sub(nsimd::set1<pack128_8i_t>(short(0)), pack128_8i_t(a));
 }
 
 // vector operator -= : subtract
@@ -1099,7 +1108,7 @@ static inline Vec8s & operator -- (Vec8s & a) {
 
 // vector operator * : multiply element by element
 static inline Vec8s operator * (Vec8s const & a, Vec8s const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack128_8i_t(a), pack128_8i_t(b));
 }
 
 // vector operator *= : multiply
@@ -1114,59 +1123,59 @@ static inline Vec8s & operator *= (Vec8s & a, Vec8s const & b) {
 
 // vector operator << : shift left
 static inline Vec8s operator << (Vec8s const & a, int b) {
-    return nsimd::shl(a,b);
+    return nsimd::shl(pack128_8i_t(a),b);
 }
 
 // vector operator <<= : shift left
 static inline Vec8s & operator <<= (Vec8s & a, int b) {
-    a = nsimd::shl(a,b);
+    a = nsimd::shl(pack128_8i_t(a),b);
     return a;
 }
 
 // vector operator >> : shift right arithmetic
 static inline Vec8s operator >> (Vec8s const & a, int b) {
-    return nsimd::shr(a,b);
+    return nsimd::shr(pack128_8i_t(a),b);
 }
 
 // vector operator >>= : shift right arithmetic
 static inline Vec8s & operator >>= (Vec8s & a, int b) {
-    a = nsimd::shr(a,b);
+    a = nsimd::shr(pack128_8i_t(a),b);
     return a;
 }
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec8sb operator == (Vec8s const & a, Vec8s const & b) {
-    return nsimd::eq(a,b);
+    return nsimd::eq(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec8sb operator != (Vec8s const & a, Vec8s const & b) {
-    return nsimd::ne(a,b);
+    return nsimd::ne(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // vector operator > : returns true for elements for which a > b
 static inline Vec8sb operator > (Vec8s const & a, Vec8s const & b) {
-    return nsimd::gt(a, b);
+    return nsimd::gt(pack128_8i_t(a), pack128_8i_t(b));
 }
 
 // vector operator < : returns true for elements for which a < b
 static inline Vec8sb operator < (Vec8s const & a, Vec8s const & b) {
-    return nsimd::lt(a,b);
+    return nsimd::lt(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec8sb operator >= (Vec8s const & a, Vec8s const & b) {
-    return nsimd::ge(a,b);
+    return nsimd::ge(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
 static inline Vec8sb operator <= (Vec8s const & a, Vec8s const & b) {
-    return nsimd::le(a,b);
+    return nsimd::le(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // vector operator & : bitwise and
 static inline Vec8s operator & (Vec8s const & a, Vec8s const & b) {
-    return nsimd::andb(a,b);
+    return nsimd::andb(pack128_8i_t(a),pack128_8i_t(b));
 }
 static inline Vec8s operator && (Vec8s const & a, Vec8s const & b) {
     return a & b;
@@ -1179,7 +1188,7 @@ static inline Vec8s & operator &= (Vec8s & a, Vec8s const & b) {
 
 // vector operator | : bitwise or
 static inline Vec8s operator | (Vec8s const & a, Vec8s const & b) {
-    return nsimd::orb(a,b);
+    return nsimd::orb(pack128_8i_t(a),pack128_8i_t(b));
 }
 static inline Vec8s operator || (Vec8s const & a, Vec8s const & b) {
     return a | b;
@@ -1192,7 +1201,7 @@ static inline Vec8s & operator |= (Vec8s & a, Vec8s const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec8s operator ^ (Vec8s const & a, Vec8s const & b) {
-    return nsimd::xorb(a,b);
+    return nsimd::xorb(pack128_8i_t(a),pack128_8i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec8s & operator ^= (Vec8s & a, Vec8s const & b) {
@@ -1202,12 +1211,12 @@ static inline Vec8s & operator ^= (Vec8s & a, Vec8s const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec8s operator ~ (Vec8s const & a) {
-    return Vec8s( ~ Vec128b(a));
+    return nsimd::notb(pack128_8i_t(a));
 }
 
 // vector operator ! : logical not, returns true for elements == 0
 static inline Vec8s operator ! (Vec8s const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_8i_t(a));
 }
 
 // Functions for this class
@@ -1228,43 +1237,43 @@ static inline Vec8s if_add (Vec8sb const & f, Vec8s const & a, Vec8s const & b) 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int32_t horizontal_add (Vec8s const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_8i_t(a));
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Elements are sign extended before adding to avoid overflow
 static inline int32_t horizontal_add_x (Vec8s const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_8i_t(a));
 }
 
 // function add_saturated: add element by element, signed with saturation
 static inline Vec8s add_saturated(Vec8s const & a, Vec8s const & b) {
-    return nsimd::adds(a, b);
+    return nsimd::adds(pack128_8i_t(a), pack128_8i_t(b));
 }
 
 // function sub_saturated: subtract element by element, signed with saturation
 static inline Vec8s sub_saturated(Vec8s const & a, Vec8s const & b) {
-    return nsimd::subs(a, b);
+    return nsimd::subs(pack128_8i_t(a), pack128_8i_t(b));
 }
 
 // function max: a > b ? a : b
 static inline Vec8s max(Vec8s const & a, Vec8s const & b) {
-    return nsimd::max(a,b);
+    return nsimd::max(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec8s min(Vec8s const & a, Vec8s const & b) {
-    return nsimd::min(a,b);
+    return nsimd::min(pack128_8i_t(a),pack128_8i_t(b));
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec8s abs(Vec8s const & a) {
-    return nsimd::abs(a);
+    return nsimd::abs(pack128_8i_t(a));
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec8s abs_saturated(Vec8s const & a) {
-    return nsimd::adds(nsimd::abs(a), nsimd::set1<pack128_8i_t>(short(0)));
+    return nsimd::adds(nsimd::abs(pack128_8i_t(a)), nsimd::set1<pack128_8i_t>(short(0)));
 }
 
 // function rotate_left all elements
@@ -1291,7 +1300,7 @@ public:
     }
     // Constructor to build from all elements:
     Vec8us(uint16_t i0, uint16_t i1, uint16_t i2, uint16_t i3, uint16_t i4, uint16_t i5, uint16_t i6, uint16_t i7) {
-        uint16_t[8] data = {i0, i1, i2, i3, i4, i5, i6, i7}
+        uint16_t data[8] = {i0, i1, i2, i3, i4, i5, i6, i7};
         xmm = nsimd::loadu<pack128_8ui_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
@@ -1308,17 +1317,17 @@ public:
 
 // vector operator + : add
 static inline Vec8us operator + (Vec8us const & a, Vec8us const & b) {
-    return nsimd::add(a,b);
+    return nsimd::add(pack128_8ui_t(a),pack128_8ui_t(b));
 }
 
 // vector operator - : subtract
 static inline Vec8us operator - (Vec8us const & a, Vec8us const & b) {
-    return nsimd::sub(a,b);
+    return nsimd::sub(pack128_8ui_t(a),pack128_8ui_t(b));
 }
 
 // vector operator * : multiply
 static inline Vec8us operator * (Vec8us const & a, Vec8us const & b) {
-    return nsimd::mul(a,b);
+    return nsimd::mul(pack128_8ui_t(a),pack128_8ui_t(b));
 }
 
 // vector operator / : divide
@@ -1326,7 +1335,7 @@ static inline Vec8us operator * (Vec8us const & a, Vec8us const & b) {
 
 // vector operator >> : shift right logical all elements
 static inline Vec8us operator >> (Vec8us const & a, uint32_t b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_8ui_t(a), b);
 }
 
 // vector operator >> : shift right logical all elements
@@ -1342,7 +1351,7 @@ static inline Vec8us & operator >>= (Vec8us & a, int b) {
 
 // vector operator << : shift left all elements
 static inline Vec8us operator << (Vec8us const & a, uint32_t b) {
-    return nsimd::shr(a, b); 
+    return nsimd::shr(pack128_8ui_t(a), b); 
 }
 
 // vector operator << : shift left all elements
@@ -1352,7 +1361,7 @@ static inline Vec8us operator << (Vec8us const & a, int32_t b) {
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec8sb operator >= (Vec8us const & a, Vec8us const & b) {
-    return nsimd::ge(a,b);
+    return nsimd::reinterpretl<packl128_8i_t>(nsimd::ge(pack128_8ui_t(a),pack128_8ui_t(b)));
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
@@ -1362,7 +1371,7 @@ static inline Vec8sb operator <= (Vec8us const & a, Vec8us const & b) {
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec8sb operator > (Vec8us const & a, Vec8us const & b) {
-    return nsimd::gt(a,b);
+    return nsimd::reinterpretl<packl128_8i_t>(nsimd::gt(pack128_8ui_t(a),pack128_8ui_t(b)));
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
@@ -1372,7 +1381,7 @@ static inline Vec8sb operator < (Vec8us const & a, Vec8us const & b) {
 
 // vector operator & : bitwise and
 static inline Vec8us operator & (Vec8us const & a, Vec8us const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack128_8ui_t(a), pack128_8ui_t(b));
 }
 static inline Vec8us operator && (Vec8us const & a, Vec8us const & b) {
     return a & b;
@@ -1380,7 +1389,7 @@ static inline Vec8us operator && (Vec8us const & a, Vec8us const & b) {
 
 // vector operator | : bitwise or
 static inline Vec8us operator | (Vec8us const & a, Vec8us const & b) {
-    return nsimd::orb(a,b);
+    return nsimd::orb(pack128_8ui_t(a),pack128_8ui_t(b));
 }
 static inline Vec8us operator || (Vec8us const & a, Vec8us const & b) {
     return a | b;
@@ -1388,12 +1397,12 @@ static inline Vec8us operator || (Vec8us const & a, Vec8us const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec8us operator ^ (Vec8us const & a, Vec8us const & b) {
-    return nsimd::xorb(a,b);
+    return nsimd::xorb(pack128_8ui_t(a),pack128_8ui_t(b));
 }
 
 // vector operator ~ : bitwise not
 static inline Vec8us operator ~ (Vec8us const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_8ui_t(a));
 }
 
 // Functions for this class
@@ -1414,33 +1423,33 @@ static inline Vec8us if_add (Vec8sb const & f, Vec8us const & a, Vec8us const & 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline uint32_t horizontal_add (Vec8us const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_8ui_t(a));
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Each element is zero-extended before addition to avoid overflow
 static inline uint32_t horizontal_add_x (Vec8us const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_8ui_t(a));
 }
 
 // function add_saturated: add element by element, unsigned with saturation
 static inline Vec8us add_saturated(Vec8us const & a, Vec8us const & b) {
-    return nsimd::adds(a, b);
+    return nsimd::adds(pack128_8ui_t(a), pack128_8ui_t(b));
 }
 
 // function sub_saturated: subtract element by element, unsigned with saturation
 static inline Vec8us sub_saturated(Vec8us const & a, Vec8us const & b) {
-    return nsimd::subs(a, b);
+    return nsimd::subs(pack128_8ui_t(a), pack128_8ui_t(b));
 }
 
 // function max: a > b ? a : b
 static inline Vec8us max(Vec8us const & a, Vec8us const & b) {
-    return nsimd::max(a, b);
+    return nsimd::max(pack128_8ui_t(a), pack128_8ui_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec8us min(Vec8us const & a, Vec8us const & b) {
-    return nsimd::min(a, b);
+    return nsimd::min(pack128_8ui_t(a), pack128_8ui_t(b));
 }
 
 
@@ -1462,7 +1471,7 @@ public:
     }
     // Constructor to build from all elements:
     Vec4i(int32_t i0, int32_t i1, int32_t i2, int32_t i3) {
-        int32_t data[4] = {i0, i1, i2, i3}
+        int32_t data[4] = {i0, i1, i2, i3};
         xmm = nsimd::loadu<pack128_4i_t>(data);
     }
     // Constructor to convert from type __m128i used in intrinsics:
@@ -1496,15 +1505,15 @@ public:
     }
     // Constructor to build from all elements:
     Vec4ib(bool x0, bool x1, bool x2, bool x3) {
-        int32_t vec[4] = {-int32_t(x0), -int32_t(x1), -int32_t(x2), -int32_t(x3)};
+        int32_t vec[4] = {-x0, -x1, -x2, -x3};
         xmm = nsimd::loadla<packl128_8i_t>(vec);
     }
     // Constructor to convert from type __m128i used in intrinsics:
-    Vec4ib(packl128_8i_t const & x) {
+    Vec4ib(packl128_4i_t const & x) {
         xmm = x;
     }
     // Assignment operator to convert from type __m128i used in intrinsics:
-    Vec4ib & operator = (packl128_8i_t const & x) {
+    Vec4ib & operator = (packl128_4i_t const & x) {
         xmm = x;
         return *this;
     }
@@ -1523,7 +1532,7 @@ private: // Prevent constructing from int, etc.
 public:  
     // Member function extract a single element from vector
     bool extract(uint32_t index) const {
-        return nsimd_common::get_bit<packl128_4i_t, int>(index, xmm) != 0;
+        return this->get_bit(index) != 0;
     }
 
     // Type cast operator to convert
@@ -1541,7 +1550,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec4ib operator & (Vec4ib const & a, Vec4ib const & b) {
-    return nsimd::andl(a, b);
+    return nsimd::andl(packl128_4i_t(a), packl128_4i_t(b));
 }
 static inline Vec4ib operator && (Vec4ib const & a, Vec4ib const & b) {
     return a & b;
@@ -1554,7 +1563,7 @@ static inline Vec4ib & operator &= (Vec4ib & a, Vec4ib const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4ib operator | (Vec4ib const & a, Vec4ib const & b) {
-    return nsimd::orl(a,b);
+    return nsimd::orl(packl128_4i_t(a),packl128_4i_t(b));
 }
 static inline Vec4ib operator || (Vec4ib const & a, Vec4ib const & b) {
     return a | b;
@@ -1567,7 +1576,7 @@ static inline Vec4ib & operator |= (Vec4ib & a, Vec4ib const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4ib operator ^ (Vec4ib const & a, Vec4ib const & b) {
-    return nsimd::xorl(a,b);
+    return nsimd::xorl(packl128_4i_t(a),packl128_4i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec4ib & operator ^= (Vec4ib & a, Vec4ib const & b) {
@@ -1577,7 +1586,7 @@ static inline Vec4ib & operator ^= (Vec4ib & a, Vec4ib const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4ib operator ~ (Vec4ib const & a) {
-    return nsimd::notl(a);
+    return nsimd::notl(packl128_4i_t(a));
 }
 
 // vector operator ! : element not
@@ -1587,19 +1596,19 @@ static inline Vec4ib operator ! (Vec4ib const & a) {
 
 // vector function andnot
 static inline Vec4ib andnot (Vec4ib const & a, Vec4ib const & b) {
-    return nsimd::andnotl(a,b);
+    return nsimd::andnotl(packl128_4i_t(a),packl128_4i_t(b));
 }
 
 // Horizontal Boolean functions for Vec4ib
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec4ib const & a) {
-    return nsimd::all(a);
+    return nsimd::all(packl128_4i_t(a));
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec4ib const & a) {
-    return nsimd::any(a);
+    return nsimd::any(packl128_4i_t(a));
 }
 
 
@@ -1611,7 +1620,7 @@ static inline bool horizontal_or(Vec4ib const & a) {
 
 // vector operator + : add element by element
 static inline Vec4i operator + (Vec4i const & a, Vec4i const & b) {
-    return nsimd::add0(a, b);
+    return nsimd::add(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // vector operator += : add
@@ -1635,12 +1644,12 @@ static inline Vec4i & operator ++ (Vec4i & a) {
 
 // vector operator - : subtract element by element
 static inline Vec4i operator - (Vec4i const & a, Vec4i const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // vector operator - : unary minus
 static inline Vec4i operator - (Vec4i const & a) {
-    return nsimd::sub(nsimd::set1<pack128_4i_t>(0), a);
+    return nsimd::sub(nsimd::set1<pack128_4i_t>(0), pack128_4i_t(a));
 }
 
 // vector operator -= : subtract
@@ -1664,7 +1673,7 @@ static inline Vec4i & operator -- (Vec4i & a) {
 
 // vector operator * : multiply element by element
 static inline Vec4i operator * (Vec4i const & a, Vec4i const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // vector operator *= : multiply
@@ -1679,7 +1688,7 @@ static inline Vec4i & operator *= (Vec4i & a, Vec4i const & b) {
 
 // vector operator << : shift left
 static inline Vec4i operator << (Vec4i const & a, int32_t b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_4i_t(a), b);
 }
 
 // vector operator <<= : shift left
@@ -1690,7 +1699,7 @@ static inline Vec4i & operator <<= (Vec4i & a, int32_t b) {
 
 // vector operator >> : shift right arithmetic
 static inline Vec4i operator >> (Vec4i const & a, int32_t b) {
-    return nsimd::shr(a, b);
+    return nsimd::shr(pack128_4i_t(a), b);
 }
 
 // vector operator >>= : shift right arithmetic
@@ -1701,17 +1710,17 @@ static inline Vec4i & operator >>= (Vec4i & a, int32_t b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec4ib operator == (Vec4i const & a, Vec4i const & b) {
-    return nsimd::eq(a, b);
+    return nsimd::eq(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec4ib operator != (Vec4i const & a, Vec4i const & b) {
-    return nsimd::ne(a, b);
+    return nsimd::ne(pack128_4i_t(a), pack128_4i_t(b));
 }
   
 // vector operator > : returns true for elements for which a > b
 static inline Vec4ib operator > (Vec4i const & a, Vec4i const & b) {
-    return nsimd::gt(a, b);
+    return nsimd::gt(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // vector operator < : returns true for elements for which a < b
@@ -1721,7 +1730,7 @@ static inline Vec4ib operator < (Vec4i const & a, Vec4i const & b) {
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec4ib operator >= (Vec4i const & a, Vec4i const & b) {
-    return nsimd::ge(a, b);
+    return nsimd::ge(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
@@ -1731,7 +1740,7 @@ static inline Vec4ib operator <= (Vec4i const & a, Vec4i const & b) {
 
 // vector operator & : bitwise and
 static inline Vec4i operator & (Vec4i const & a, Vec4i const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack128_4i_t(a), pack128_4i_t(b));
 }
 static inline Vec4i operator && (Vec4i const & a, Vec4i const & b) {
     return a & b;
@@ -1744,7 +1753,7 @@ static inline Vec4i & operator &= (Vec4i & a, Vec4i const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4i operator | (Vec4i const & a, Vec4i const & b) {
-    return nsimd::orb;
+    return nsimd::orb(pack128_4i_t(a), pack128_4i_t(b));
 }
 static inline Vec4i operator || (Vec4i const & a, Vec4i const & b) {
     return a | b;
@@ -1757,7 +1766,7 @@ static inline Vec4i & operator |= (Vec4i & a, Vec4i const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4i operator ^ (Vec4i const & a, Vec4i const & b) {
-    return nsimd::xorb(a, b);
+    return nsimd::xorb(pack128_4i_t(a), pack128_4i_t(b));
 }
 // vector operator ^= : bitwise and
 static inline Vec4i & operator ^= (Vec4i & a, Vec4i const & b) {
@@ -1767,12 +1776,12 @@ static inline Vec4i & operator ^= (Vec4i & a, Vec4i const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec4i operator ~ (Vec4i const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_4i_t(a));
 }
 
 // vector operator ! : returns true for elements == 0
 static inline Vec4ib operator ! (Vec4i const & a) {
-    return nsimd::eq(a, nsimd::set1<pack128_4i_t>(0));
+    return nsimd::eq(pack128_4i_t(a), nsimd::set1<pack128_4i_t>(0));
 }
 
 // Functions for this class
@@ -1793,43 +1802,43 @@ static inline Vec4i if_add (Vec4ib const & f, Vec4i const & a, Vec4i const & b) 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int32_t horizontal_add (Vec4i const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_4i_t(a));
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Elements are sign extended before adding to avoid overflow
 static inline int64_t horizontal_add_x (Vec4i const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_4i_t(a));
 }
 
 // function add_saturated: add element by element, signed with saturation
 static inline Vec4i add_saturated(Vec4i const & a, Vec4i const & b) {
-    return nsimd::adds(a, b);
+    return nsimd::adds(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // function sub_saturated: subtract element by element, signed with saturation
 static inline Vec4i sub_saturated(Vec4i const & a, Vec4i const & b) {
-    return nsimd::subs(a, b);
+    return nsimd::subs(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // function max: a > b ? a : b
 static inline Vec4i max(Vec4i const & a, Vec4i const & b) {
-    return nsimd::max(a, b);
+    return nsimd::max(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec4i min(Vec4i const & a, Vec4i const & b) {
-    return nsimd::min(a, b);
+    return nsimd::min(pack128_4i_t(a), pack128_4i_t(b));
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec4i abs(Vec4i const & a) {
-    return nsimd::abs(a);
+    return nsimd::abs(pack128_4i_t(a));
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec4i abs_saturated(Vec4i const & a) {
-    pack128_4i_t absa   = nsimd::abs(pack);
+    pack128_4i_t absa   = nsimd::abs(pack128_4i_t(a));
     return nsimd::adds(absa, nsimd::set1<pack128_4i_t>(int(0)));
 }
 
@@ -1875,17 +1884,17 @@ public:
 
 // vector operator + : add
 static inline Vec4ui operator + (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::add(a, b);
+    return nsimd::add(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 
 // vector operator - : subtract
 static inline Vec4ui operator - (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 
 // vector operator * : multiply
 static inline Vec4ui operator * (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 
 // vector operator / : divide
@@ -1893,7 +1902,7 @@ static inline Vec4ui operator * (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator >> : shift right logical all elements
 static inline Vec4ui operator >> (Vec4ui const & a, uint32_t b) {
-    return nsimd::shr(a, b); 
+    return nsimd::shr(pack128_4ui_t(a), b); 
 }
 
 // vector operator >> : shift right logical all elements
@@ -1909,17 +1918,17 @@ static inline Vec4ui & operator >>= (Vec4ui & a, int b) {
 
 // vector operator << : shift left all elements
 static inline Vec4ui operator << (Vec4ui const & a, uint32_t b) {
-    return nsimd::shl(a, b); 
+    return nsimd::shl(pack128_4ui_t(a), b); 
 }
 
 // vector operator << : shift left all elements
 static inline Vec4ui operator << (Vec4ui const & a, int32_t b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_4ui_t(a), b);
 }
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec4ib operator > (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::gt(a, b);
+    return nsimd::reinterpretl<packl128_4i_t>(nsimd::gt(pack128_4ui_t(a), pack128_4ui_t(b)));
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
@@ -1929,7 +1938,7 @@ static inline Vec4ib operator < (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec4ib operator >= (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::ge(a, b);
+    return nsimd::reinterpretl<packl128_4i_t>(nsimd::ge(pack128_4ui_t(a), pack128_4ui_t(b)));
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
@@ -1939,7 +1948,7 @@ static inline Vec4ib operator <= (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator & : bitwise and
 static inline Vec4ui operator & (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 static inline Vec4ui operator && (Vec4ui const & a, Vec4ui const & b) {
     return a & b;
@@ -1947,7 +1956,7 @@ static inline Vec4ui operator && (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator | : bitwise or
 static inline Vec4ui operator | (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::orb(a, b);
+    return nsimd::orb(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 static inline Vec4ui operator || (Vec4ui const & a, Vec4ui const & b) {
     return a | b;
@@ -1955,12 +1964,12 @@ static inline Vec4ui operator || (Vec4ui const & a, Vec4ui const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec4ui operator ^ (Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::xorb(a, b);
+    return nsimd::xorb(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 
 // vector operator ~ : bitwise not
 static inline Vec4ui operator ~ (Vec4ui const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_4ui_t(a));
 }
 
 // Functions for this class
@@ -1981,33 +1990,33 @@ static inline Vec4ui if_add (Vec4ib const & f, Vec4ui const & a, Vec4ui const & 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline uint32_t horizontal_add (Vec4ui const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_4ui_t(a));
 }
 
 // Horizontal add extended: Calculates the sum of all vector elements.
 // Elements are zero extended before adding to avoid overflow
 static inline uint64_t horizontal_add_x (Vec4ui const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_4ui_t(a));
 }
 
 // function add_saturated: add element by element, unsigned with saturation
 static inline Vec4ui add_saturated(Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::adds(a, b);    
+    return nsimd::adds(pack128_4ui_t(a), pack128_4ui_t(b));    
 }
 
 // function sub_saturated: subtract element by element, unsigned with saturation
 static inline Vec4ui sub_saturated(Vec4ui const & a, Vec4ui const & b) {
-   return nsimd::adds(a, b); 
+   return nsimd::adds(pack128_4ui_t(a), pack128_4ui_t(b)); 
 }
 
 // function max: a > b ? a : b
 static inline Vec4ui max(Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::max(a, b);
+    return nsimd::max(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec4ui min(Vec4ui const & a, Vec4ui const & b) {
-    return nsimd::min(a, b);
+    return nsimd::min(pack128_4ui_t(a), pack128_4ui_t(b));
 }
 
 
@@ -2056,12 +2065,12 @@ public:
     }
     // Partial load. Load n elements and set the rest to 0
     Vec2q & load_partial(int n, void const * p) {
-        xmm = nsimd_common::load_partial<pack128_2i_t, packl128_2i_t, int64_t>(p, n);
+        xmm = nsimd_common::load_partial<pack128_2i_t, packl128_2i_t, int64_t>((int64_t*)p, n);
         return *this;
     }
     // Partial store. Store n elements
     void store_partial(int n, void * p) const {
-        nsimd_common::store_partial<pack128_2i_t, packl128_2i_t, int64_t>(p, n, xmm);
+        nsimd_common::store_partial<pack128_2i_t, packl128_2i_t, int64_t>((int64_t*)p, n, xmm);
     }
     // cut off vector to n elements. The last 2-n elements are set to zero
     Vec2q & cutoff(int n) {
@@ -2103,7 +2112,7 @@ public:
     }
     // Constructor to build from all elements:
     Vec2qb(bool x0, bool x1) {
-        int64_t vec[2] = {-int64_t(x0), -int64_t(x1)};
+        int64_t vec[2] = {-x0, -x1};
         xmm = nsimd::loadla<packl128_2i_t>(vec);
     }
     // Constructor to convert from type __m128i used in intrinsics:
@@ -2130,7 +2139,7 @@ private: // Prevent constructing from int, etc.
 public:
     // Member function extract a single element from vector
     bool extract(uint32_t index) const {
-        return nsimd_common::get_bit<packl128_2i_t, int64_t>(index, xmm) != 0;
+        return this->get_bit(index) != 0;
     }
     // Type cast operator to convert
     operator packl128_2i_t() const {
@@ -2147,7 +2156,7 @@ public:
 
 // vector operator & : bitwise and
 static inline Vec2qb operator & (Vec2qb const & a, Vec2qb const & b) {
-    return nsimd::andl(a, b);
+    return nsimd::andl(packl128_2i_t(a), packl128_2i_t(b));
 }
 static inline Vec2qb operator && (Vec2qb const & a, Vec2qb const & b) {
     return a & b;
@@ -2160,7 +2169,7 @@ static inline Vec2qb & operator &= (Vec2qb & a, Vec2qb const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2qb operator | (Vec2qb const & a, Vec2qb const & b) {
-    return nsimd::orl(a, b);
+    return nsimd::orl(packl128_2i_t(a), packl128_2i_t(b));
 }
 static inline Vec2qb operator || (Vec2qb const & a, Vec2qb const & b) {
     return a | b;
@@ -2173,7 +2182,7 @@ static inline Vec2qb & operator |= (Vec2qb & a, Vec2qb const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2qb operator ^ (Vec2qb const & a, Vec2qb const & b) {
-    return nsimd::xorl(a, b);
+    return nsimd::xorl(packl128_2i_t(a), packl128_2i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec2qb & operator ^= (Vec2qb & a, Vec2qb const & b) {
@@ -2183,7 +2192,7 @@ static inline Vec2qb & operator ^= (Vec2qb & a, Vec2qb const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec2qb operator ~ (Vec2qb const & a) {
-    return nsimd::notl(a);
+    return nsimd::notl(packl128_2i_t(a));
 }
 
 // vector operator ! : element not
@@ -2193,19 +2202,19 @@ static inline Vec2qb operator ! (Vec2qb const & a) {
 
 // vector function andnot
 static inline Vec2qb andnot (Vec2qb const & a, Vec2qb const & b) {
-    return nsimd:andnotl(a, b);
+    return nsimd::andnotl(packl128_2i_t(a), packl128_2i_t(b));
 }
 
 // Horizontal Boolean functions for Vec2qb
 
 // horizontal_and. Returns true if all elements are true
 static inline bool horizontal_and(Vec2qb const & a) {
-    return nsimd::all(a);
+    return nsimd::all(packl128_2i_t(a));
 }
 
 // horizontal_or. Returns true if at least one element is true
 static inline bool horizontal_or(Vec2qb const & a) {
-    return nsimd::any(a);
+    return nsimd::any(packl128_2i_t(a));
 } 
 
 
@@ -2217,7 +2226,7 @@ static inline bool horizontal_or(Vec2qb const & a) {
 
 // vector operator + : add element by element
 static inline Vec2q operator + (Vec2q const & a, Vec2q const & b) {
-    return nsimd::add(a, b);
+    return nsimd::add(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // vector operator += : add
@@ -2241,12 +2250,12 @@ static inline Vec2q & operator ++ (Vec2q & a) {
 
 // vector operator - : subtract element by element
 static inline Vec2q operator - (Vec2q const & a, Vec2q const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // vector operator - : unary minus
 static inline Vec2q operator - (Vec2q const & a) {
-    return nsimd::sub(nsimd::set1<pack128_2i_t>(0.0), a);
+    return nsimd::sub(nsimd::set1<pack128_2i_t>(0.0), pack128_2i_t(a));
 }
 
 // vector operator -= : subtract
@@ -2270,7 +2279,7 @@ static inline Vec2q & operator -- (Vec2q & a) {
 
 // vector operator * : multiply element by element
 static inline Vec2q operator * (Vec2q const & a, Vec2q const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // vector operator *= : multiply
@@ -2281,7 +2290,7 @@ static inline Vec2q & operator *= (Vec2q & a, Vec2q const & b) {
 
 // vector operator << : shift left
 static inline Vec2q operator << (Vec2q const & a, int32_t b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_2i_t(a), b);
 }
 
 // vector operator <<= : shift left
@@ -2292,7 +2301,7 @@ static inline Vec2q & operator <<= (Vec2q & a, int32_t b) {
 
 // vector operator >> : shift right arithmetic
 static inline Vec2q operator >> (Vec2q const & a, int32_t b) {
-    return nsimd::shr(a, b);
+    return nsimd::shr(pack128_2i_t(a), b);
 }
 
 // vector operator >>= : shift right arithmetic
@@ -2303,17 +2312,17 @@ static inline Vec2q & operator >>= (Vec2q & a, int32_t b) {
 
 // vector operator == : returns true for elements for which a == b
 static inline Vec2qb operator == (Vec2q const & a, Vec2q const & b) {
-    return nsimd::eq(a, b);
+    return nsimd::eq(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // vector operator != : returns true for elements for which a != b
 static inline Vec2qb operator != (Vec2q const & a, Vec2q const & b) {
-    return nsimd::ne(a, b);
+    return nsimd::ne(pack128_2i_t(a), pack128_2i_t(b));
 }
   
 // vector operator < : returns true for elements for which a < b
 static inline Vec2qb operator < (Vec2q const & a, Vec2q const & b) {
-    return nsimd::lt(a, b);
+    return nsimd::lt(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // vector operator > : returns true for elements for which a > b
@@ -2323,7 +2332,7 @@ static inline Vec2qb operator > (Vec2q const & a, Vec2q const & b) {
 
 // vector operator >= : returns true for elements for which a >= b (signed)
 static inline Vec2qb operator >= (Vec2q const & a, Vec2q const & b) {
-    return nsimd::ge(a, b);
+    return nsimd::ge(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // vector operator <= : returns true for elements for which a <= b (signed)
@@ -2333,7 +2342,7 @@ static inline Vec2qb operator <= (Vec2q const & a, Vec2q const & b) {
 
 // vector operator & : bitwise and
 static inline Vec2q operator & (Vec2q const & a, Vec2q const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack128_2i_t(a), pack128_2i_t(b));
 }
 static inline Vec2q operator && (Vec2q const & a, Vec2q const & b) {
     return a & b;
@@ -2346,7 +2355,7 @@ static inline Vec2q & operator &= (Vec2q & a, Vec2q const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2q operator | (Vec2q const & a, Vec2q const & b) {
-    return nsimd::orb(a, b);
+    return nsimd::orb(pack128_2i_t(a), pack128_2i_t(b));
 }
 static inline Vec2q operator || (Vec2q const & a, Vec2q const & b) {
     return a | b;
@@ -2359,7 +2368,7 @@ static inline Vec2q & operator |= (Vec2q & a, Vec2q const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2q operator ^ (Vec2q const & a, Vec2q const & b) {
-    return nsimd::xorb(a, b);
+    return nsimd::xorb(pack128_2i_t(a), pack128_2i_t(b));
 }
 // vector operator ^= : bitwise xor
 static inline Vec2q & operator ^= (Vec2q & a, Vec2q const & b) {
@@ -2369,12 +2378,12 @@ static inline Vec2q & operator ^= (Vec2q & a, Vec2q const & b) {
 
 // vector operator ~ : bitwise not
 static inline Vec2q operator ~ (Vec2q const & a) {
-    return nsimd::notb(a);
+    return nsimd::notb(pack128_2i_t(a));
 }
 
 // vector operator ! : logical not, returns true for elements == 0
 static inline Vec2qb operator ! (Vec2q const & a) {
-    return nsimd::eq(a, nsimd::set1<pack128_2i_t>(0.0));
+    return nsimd::eq(pack128_2i_t(a), nsimd::set1<pack128_2i_t>(0));
 }
 
 // Functions for this class
@@ -2395,28 +2404,28 @@ static inline Vec2q if_add (Vec2qb const & f, Vec2q const & a, Vec2q const & b) 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline int64_t horizontal_add (Vec2q const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_2i_t(a));
 }
 
 // function max: a > b ? a : b
 static inline Vec2q max(Vec2q const & a, Vec2q const & b) {
-    return nsimd::max(a, b);
+    return nsimd::max(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec2q min(Vec2q const & a, Vec2q const & b) {
-    return nsimd::min(a, b);
+    return nsimd::min(pack128_2i_t(a), pack128_2i_t(b));
 }
 
 // function abs: a >= 0 ? a : -a
 static inline Vec2q abs(Vec2q const & a) {
-    return nsimd::abs(a);
+    return nsimd::abs(pack128_2i_t(a));
 }
 
 // function abs_saturated: same as abs, saturate if overflow
 static inline Vec2q abs_saturated(Vec2q const & a) {
-    pack128_2i_t absa   = nsimd::abs(pack);
-    return nsimd::adds(absa, nsimd::set1<pack128_2i_t>(0.0));
+    pack128_2i_t absa   = nsimd::abs(pack128_2i_t(a));
+    return nsimd::adds(absa, nsimd::set1<pack128_2i_t>(0));
 }
 
 // function rotate_left all elements
@@ -2460,22 +2469,22 @@ public:
 
 // vector operator + : add
 static inline Vec2uq operator + (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::add(a, b);
+    return nsimd::add(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 
 // vector operator - : subtract
 static inline Vec2uq operator - (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::sub(a, b);
+    return nsimd::sub(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 
 // vector operator * : multiply element by element
 static inline Vec2uq operator * (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::mul(a, b);
+    return nsimd::mul(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 
 // vector operator >> : shift right logical all elements
 static inline Vec2uq operator >> (Vec2uq const & a, uint32_t b) {
-    return nsimd::shr(a, b); 
+    return nsimd::shr(pack128_2ui_t(a), b); 
 }
 
 // vector operator >> : shift right logical all elements
@@ -2491,7 +2500,7 @@ static inline Vec2uq & operator >>= (Vec2uq & a, int b) {
 
 // vector operator << : shift left all elements
 static inline Vec2uq operator << (Vec2uq const & a, uint32_t b) {
-    return nsimd::shl(a, b);
+    return nsimd::shl(pack128_2ui_t(a), b);
 }
 
 // vector operator << : shift left all elements
@@ -2501,27 +2510,27 @@ static inline Vec2uq operator << (Vec2uq const & a, int32_t b) {
 
 // vector operator > : returns true for elements for which a > b (unsigned)
 static inline Vec2qb operator > (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::gt(a, b);
+    return nsimd::reinterpretl<packl128_2i_t>(nsimd::gt(pack128_2ui_t(a), pack128_2ui_t(b)));
 }
 
 // vector operator < : returns true for elements for which a < b (unsigned)
 static inline Vec2qb operator < (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::lt(a, b);
+    return nsimd::reinterpretl<packl128_2i_t>(nsimd::lt(pack128_2ui_t(a), pack128_2ui_t(b)));
 }
 
 // vector operator >= : returns true for elements for which a >= b (unsigned)
 static inline Vec2qb operator >= (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::ge(a, b);
+    return nsimd::reinterpretl<packl128_2i_t>(nsimd::ge(pack128_2ui_t(a), pack128_2ui_t(b)));
 }
 
 // vector operator <= : returns true for elements for which a <= b (unsigned)
 static inline Vec2qb operator <= (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::le(a, b);
+    return nsimd::reinterpretl<packl128_2i_t>(nsimd::le(pack128_2ui_t(a), pack128_2ui_t(b)));
 }
 
 // vector operator & : bitwise and
 static inline Vec2uq operator & (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::andb(a, b);
+    return nsimd::andb(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 static inline Vec2uq operator && (Vec2uq const & a, Vec2uq const & b) {
     return a & b;
@@ -2529,7 +2538,7 @@ static inline Vec2uq operator && (Vec2uq const & a, Vec2uq const & b) {
 
 // vector operator | : bitwise or
 static inline Vec2uq operator | (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::orb(a, b);
+    return nsimd::orb(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 static inline Vec2uq operator || (Vec2uq const & a, Vec2uq const & b) {
     return a | b;
@@ -2537,12 +2546,12 @@ static inline Vec2uq operator || (Vec2uq const & a, Vec2uq const & b) {
 
 // vector operator ^ : bitwise xor
 static inline Vec2uq operator ^ (Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::xorb(a, b);
+    return nsimd::xorb(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 
 // vector operator ~ : bitwise not
 static inline Vec2uq operator ~ (Vec2uq const & a) {
-    return nsimd::orb(a);
+    return nsimd::notb(pack128_2ui_t(a));
 }
 
 
@@ -2564,17 +2573,17 @@ static inline Vec2uq if_add (Vec2qb const & f, Vec2uq const & a, Vec2uq const & 
 // Horizontal add: Calculates the sum of all vector elements.
 // Overflow will wrap around
 static inline uint64_t horizontal_add (Vec2uq const & a) {
-    return nsimd::addv(a);
+    return nsimd::addv(pack128_2ui_t(a));
 }
 
 // function max: a > b ? a : b
 static inline Vec2uq max(Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::max(a, b);
+    return nsimd::max(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 
 // function min: a < b ? a : b
 static inline Vec2uq min(Vec2uq const & a, Vec2uq const & b) {
-    return nsimd::min(a, b);
+    return nsimd::min(pack128_2ui_t(a), pack128_2ui_t(b));
 }
 
 
@@ -2787,9 +2796,11 @@ static inline Vec16c lookup32(Vec16c const & index, Vec16c const & table0, Vec16
 
 template <int n>
 static inline Vec16c lookup(Vec16c const & index, void const * table) {
-    if (n <=  0) return 0;
-    if (n <= 16) return lookup16(index, Vec16c().load(table));
-    if (n <= 32) return lookup32(index, Vec16c().load(table), Vec16c().load((int8_t*)table + 16));
+    Vec16c reg1 = Vec16c().load(table);
+    Vec16c reg2 = Vec16c().load((int8_t*)table + 16);
+    if (n <=  0) return Vec16c(0);
+    if (n <= 16) return lookup16(index, reg1);
+    if (n <= 32) return lookup32(index, reg1, reg2);
     // n > 32. Limit index
     Vec16uc index1;
     if ((n & (n-1)) == 0) {
@@ -2805,7 +2816,7 @@ static inline Vec16c lookup(Vec16c const & index, void const * table) {
     for (int j = 0; j < 16; j++) {
         rr[j] = ((int8_t*)table)[ii[j]];
     }
-    return Vec16c().load(rr);
+    return (Vec16c)Vec16c().load(rr);
 }
 
 static inline Vec8s lookup8(Vec8s const & index, Vec8s const & table) {
@@ -2816,14 +2827,14 @@ static inline Vec8s lookup16(Vec8s const & index, Vec8s const & table0, Vec8s co
     int16_t ii[16], tt[32], rr[16];
     table0.store(tt);  table1.store(tt+8);  index.store(ii);
     for (int j = 0; j < 16; j++) rr[j] = tt[ii[j] & 0x1F];
-    return Vec8s().load(rr);
+    return (Vec8s)Vec8s().load(rr);
 }
 
 template <int n>
 static inline Vec8s lookup(Vec8s const & index, void const * table) {
-    if (n <=  0) return 0;
-    if (n <=  8) return lookup8 (index, Vec8s().load(table));
-    if (n <= 16) return lookup16(index, Vec8s().load(table), Vec8s().load((int16_t*)table + 8));
+    if (n <=  0) return Vec8s(0);
+    if (n <=  8) return lookup8 (index, (Vec8s)Vec8s().load(table));
+    if (n <= 16) return lookup16(index, (Vec8s)Vec8s().load(table), (Vec8s)Vec8s().load((int16_t*)table + 8));
     // n > 16. Limit index
     Vec8us index1;
     if ((n & (n-1)) == 0) {
@@ -2848,7 +2859,7 @@ static inline Vec4i lookup8(Vec4i const & index, Vec4i const & table0, Vec4i con
     int32_t ii[4], tt[8], rr[4];
     table0.store(tt);  table1.store(tt+4);  index.store(ii);
     for (int j = 0; j < 4; j++) rr[j] = tt[ii[j] & 0x07];
-    return Vec4i().load(rr);
+    return (Vec4i)Vec4i().load(rr);
 }
 
 static inline Vec4i lookup16(Vec4i const & index, Vec4i const & table0, Vec4i const & table1, Vec4i const & table2, Vec4i const & table3) {
@@ -2856,14 +2867,14 @@ static inline Vec4i lookup16(Vec4i const & index, Vec4i const & table0, Vec4i co
     table0.store(tt);  table1.store(tt+4);  table2.store(tt+8);  table3.store(tt+12);
     index.store(ii);
     for (int j = 0; j < 4; j++) rr[j] = tt[ii[j] & 0x0F];
-    return Vec4i().load(rr);
+    return (Vec4i)Vec4i().load(rr);
 }
 
 template <int n>
 static inline Vec4i lookup(Vec4i const & index, void const * table) {
-    if (n <= 0) return 0;
-    if (n <= 4) return lookup4(index, Vec4i().load(table));
-    if (n <= 8) return lookup8(index, Vec4i().load(table), Vec4i().load((int32_t*)table + 4));
+    if (n <= 0) return Vec4i(0);
+    if (n <= 4) return lookup4(index, (Vec4i)Vec4i().load(table));
+    if (n <= 8) return lookup8(index, (Vec4i)Vec4i().load(table), (Vec4i)Vec4i().load((int32_t*)table + 4));
     // n > 8. Limit index
     Vec4ui index1;
     if ((n & (n-1)) == 0) {
@@ -2885,7 +2896,7 @@ static inline Vec2q lookup2(Vec2q const & index, Vec2q const & table) {
 
 template <int n>
 static inline Vec2q lookup(Vec2q const & index, void const * table) {
-    if (n <= 0) return 0;
+    if (n <= 0) return Vec2q(0);
     // n > 0. Limit index
     Vec2uq index1;
     if ((n & (n-1)) == 0) {
@@ -2913,13 +2924,13 @@ static inline Vec2q lookup(Vec2q const & index, void const * table) {
 // Function shift_bytes_up: shift whole vector left by b bytes.
 // You may use a permute function instead if b is a compile-time constant
 static inline Vec16c shift_bytes_up(Vec16c const & a, int b) {
-    return nsimd_common::shift_bytes_up16(a, b);
+    return nsimd_common::shift_bytes_up16<pack128_16i_t, int8_t>(a, b);
 }
 
 // Function shift_bytes_down: shift whole vector right by b bytes
 // You may use a permute function instead if b is a compile-time constant
 static inline Vec16c shift_bytes_down(Vec16c const & a, int b) {
-    return nsimd_common::shift_bytes_down16(a, b);
+    return nsimd_common::shift_bytes_down16<pack128_16i_t, int8_t>(a, b);
 }
 
 /*****************************************************************************
@@ -2977,15 +2988,15 @@ static inline void scatter(Vec2q const & data, void * array) {
 }
 
 static inline void scatter(Vec4i const & index, uint32_t limit, Vec4i const & data, void * array) {
-    nsimd_common::scatter<pack128_4i_t,int32_t>(index, limit, data, array);
+    nsimd_common::scatter<pack128_4i_t,int32_t, 4>(index, limit, data, array);
 }
 
 static inline void scatter(Vec2q const & index, uint32_t limit, Vec2q const & data, void * array) {
-    nsimd_common::scatter<pack128_2i_t,int64_t>(index, limit, data, array);
+    nsimd_common::scatter<pack128_2i_t,int64_t, 2>(index, limit, data, array);
 } 
 
 static inline void scatter(Vec4i const & index, uint32_t limit, Vec2q const & data, void * array) {
-    nsimd_common::scatter<pack128_2i_t,int64_t>(index, limit, data, array);
+    nsimd_common::scatter<pack128_2i_t,int64_t, 4>(index, limit, data, array);
 } 
 
 /*****************************************************************************
@@ -2998,66 +3009,66 @@ static inline void scatter(Vec4i const & index, uint32_t limit, Vec2q const & da
 
 // Function extend_low : extends the low 8 elements to 16 bits with sign extension
 static inline Vec8s extend_low (Vec16c const & a) {
-    return nsimd_common::extend_low<Vec16c, Vec8s>(a);
+    return nsimd_common::extend_low<Vec8s, Vec16c>(a);
 }
 
 // Function extend_high : extends the high 8 elements to 16 bits with sign extension
 static inline Vec8s extend_high (Vec16c const & a) {
-    return nsimd_common::extend_high<Vec16c, Vec8s>(a);
+    return nsimd_common::extend_high<Vec8s, Vec16c>(a);
 }
 
 // Function extend_low : extends the low 8 elements to 16 bits with zero extension
 static inline Vec8us extend_low (Vec16uc const & a) {
-    return nsimd_common::extend_low<Vec16uc, Vec8us>(a);
+    return nsimd_common::extend_low<Vec8us, Vec16uc>(a);
 }
 
 // Function extend_high : extends the high 8 elements to 16 bits with zero extension
 static inline Vec8us extend_high (Vec16uc const & a) {
-    return nsimd_common::extend_high<Vec16uc, Vec8us>(a);
+    return nsimd_common::extend_high<Vec8us, Vec16uc>(a);
 }
 
 // Extend 16-bit integers to 32-bit integers, signed and unsigned
 
 // Function extend_low : extends the low 4 elements to 32 bits with sign extension
 static inline Vec4i extend_low (Vec8s const & a) {
-    return nsimd_common::extend_low<Vec8s, Vec4i>(a);
+    return nsimd_common::extend_low<Vec4i, Vec8s>(a);
 }
 
 // Function extend_high : extends the high 4 elements to 32 bits with sign extension
 static inline Vec4i extend_high (Vec8s const & a) {
-    return nsimd_common::extend_high<Vec8s, Vec4i>(a);
+    return nsimd_common::extend_high<Vec4i, Vec8s>(a);
 }
 
 // Function extend_low : extends the low 4 elements to 32 bits with zero extension
 static inline Vec4ui extend_low (Vec8us const & a) {
-    return nsimd_common::extend_low<Vec8us, Vec4ui>(a);
+    return nsimd_common::extend_low<Vec4ui, Vec8us>(a);
 }
 
 // Function extend_high : extends the high 4 elements to 32 bits with zero extension
 static inline Vec4ui extend_high (Vec8us const & a) {
-    return nsimd_common::extend_high<Vec8us, Vec4ui>(a);
+    return nsimd_common::extend_high<Vec4ui, Vec8us>(a);
 }
 
 // Extend 32-bit integers to 64-bit integers, signed and unsigned
 
 // Function extend_low : extends the low 2 elements to 64 bits with sign extension
 static inline Vec2q extend_low (Vec4i const & a) {
-    return nsimd_common::extend_low<Vec4i, Vec2q>(a);
+    return nsimd_common::extend_low<Vec2q, Vec4i>(a);
 }
 
 // Function extend_high : extends the high 2 elements to 64 bits with sign extension
 static inline Vec2q extend_high (Vec4i const & a) {
-    return nsimd_common::extend_high<Vec4i, Vec2q>(a);
+    return nsimd_common::extend_high<Vec2q, Vec4i>(a);
 }
 
 // Function extend_low : extends the low 2 elements to 64 bits with zero extension
 static inline Vec2uq extend_low (Vec4ui const & a) {
-    return nsimd_common::extend_low<Vec4ui, Vec2uq>(a);
+    return nsimd_common::extend_low<Vec2uq, Vec4ui>(a);
 }
 
 // Function extend_high : extends the high 2 elements to 64 bits with zero extension
 static inline Vec2uq extend_high (Vec4ui const & a) {
-    return nsimd_common::extend_high<Vec4ui, Vec2uq>(a);
+    return nsimd_common::extend_high<Vec2uq, Vec4ui>(a);
 }
 
 // Compress 16-bit integers to 8-bit integers, signed and unsigned, with and without saturation
@@ -3077,13 +3088,13 @@ static inline Vec16c compress_saturated (Vec8s const & low, Vec8s const & high) 
 // Function compress : packs two vectors of 16-bit integers to one vector of 8-bit integers
 // Unsigned, overflow wraps around
 static inline Vec16uc compress (Vec8us const & low, Vec8us const & high) {
-    return  nsimd_common::compress16<pack128_16i_t, int8_t, pack128_8i_t, int16_t>(low, high);
+    return  nsimd_common::compress16<pack128_16ui_t, uint8_t, pack128_8ui_t, uint16_t>(low, high);
 }
 
 // Function compress : packs two vectors of 16-bit integers into one vector of 8-bit integers
 // Unsigned, with saturation
 static inline Vec16uc compress_saturated (Vec8us const & low, Vec8us const & high) {
-    return nsimd_common::compress16<pack128_16i_t, int8_t, pack128_8i_t, int16_t>(low, high, true);
+    return nsimd_common::compress16<pack128_16ui_t, uint8_t, pack128_8ui_t, uint16_t>(low, high, true);
 }
 
 // Compress 32-bit integers to 16-bit integers, signed and unsigned, with and without saturation
@@ -3212,32 +3223,32 @@ template <> struct BitScanR<0> {enum {val = 0};};          // Avoid infinite tem
 
 // vector of 4 32-bit signed integers
 static inline Vec4i operator / (Vec4i const & a, Vec4i const & d) {
-    return nsimd::div(a, d);
+    return nsimd::div(pack128_4i_t(a), pack128_4i_t(d));
 }
 
 // vector of 4 32-bit unsigned integers
 static inline Vec4ui operator / (Vec4ui const & a, Vec4ui const & d) {
-    return nsimd::div(a, d);
+    return nsimd::div(pack128_4ui_t(a), pack128_4ui_t(d));
 }
 
 // vector of 8 16-bit signed integers
 static inline Vec8s operator / (Vec8s const & a, Vec8s const & d) {
-    return nsimd::div(a, d);
+    return nsimd::div(pack128_8i_t(a), pack128_8i_t(d));
 }
 
 // vector of 8 16-bit unsigned integers
 static inline Vec8us operator / (Vec8us const & a, Vec8us const & d) {
-    return nsimd::div(a, d);
+    return nsimd::div(pack128_8ui_t(a), pack128_8ui_t(d));
 }
  
 // vector of 16 8-bit signed integers
 static inline Vec16c operator / (Vec16c const & a, Vec16c const & d) {
-    return nsimd::div(a, d);
+    return nsimd::div(pack128_16i_t(a), pack128_16i_t(d));
 }
 
 // vector of 16 8-bit unsigned integers
 static inline Vec16uc operator / (Vec16uc const & a, Vec16uc const & d) {
-    return nsimd::div(a, d);
+    return nsimd::div(pack128_16ui_t(a), pack128_16ui_t(d));
 }
 
 // vector operator /= : divide
@@ -3290,7 +3301,7 @@ static inline Vec4i divide_by_i(Vec4i const & x) {
     if (d == -1) return -x;
     if (uint32_t(d) == 0x80000000u) return Vec4i(x == Vec4i(0x80000000)) & 1; // prevent overflow when changing sign
     pack128_4i_t div = nsimd::set1<pack128_4i_t>(d);
-    return nsimd::div(x, div); 
+    return nsimd::div(pack128_4i_t(x), div); 
 }
 
 // define Vec4i a / const_int(d)
@@ -3327,7 +3338,7 @@ static inline Vec4ui divide_by_ui(Vec4ui const & x) {
     Static_error_check<(d!=0)> Dividing_by_zero;                     // Error message if dividing by zero
     if (d == 1) return x;                                            // divide by 18_16i_t>(d0);
     pack128_4ui_t div = nsimd::set1<pack128_4ui_t>(d);
-    return nsimd::div(x, div);                                       
+    return nsimd::div(pack128_4ui_t(x), div);                                       
 }
 
 // define Vec4ui a / const_uint(d)
@@ -3367,7 +3378,7 @@ static inline Vec8s divide_by_i(Vec8s const & x) {
     if (d0 == -1) return -x;                                         // divide by -1
     if (uint16_t(d0) == 0x8000u) return Vec8s(x == Vec8s(0x8000)) & 1;// prevent overflow when changing sign
     pack128_8i_t div = nsimd::set1<pack128_8i_t>(d0);
-    return nsimd::div(x, div);
+    return nsimd::div(pack128_8i_t(x), div);
 }
 
 // define Vec8s a / const_int(d)
@@ -3405,7 +3416,7 @@ static inline Vec8us divide_by_ui(Vec8us const & x) {
     Static_error_check<(d0 != 0)> Dividing_by_zero;                  // Error message if dividing by zero
     if (d0 == 1) return x;                                           // divide by 1
     pack128_8ui_t div = nsimd::set1<pack128_8ui_t>(d0);
-    return nsimd::div(x, div);
+    return nsimd::div(pack128_8ui_t(x), div);
 }
 
 // define Vec8us a / const_uint(d)
@@ -3441,9 +3452,9 @@ template <int d>
 static inline Vec16c operator / (Vec16c const & a, Const_int_t<d>) {
     const uint8_t d0 = uint8_t(d);                                 // truncate d to 16 bits
     Static_error_check<(d0 != 0)> Dividing_by_zero;                  // Error message if dividing by zero
-    if (d0 == 1) return x;                                           // divide by 1
+    if (d0 == 1) return a;                                           // divide by 1
     pack128_16i_t div = nsimd::set1<pack128_16i_t>(d0);
-    return nsimd::div(x, div);
+    return nsimd::div(pack128_16i_t(a), div);
 }
 
 // define Vec16c a / const_uint(d)
@@ -3471,9 +3482,9 @@ template <uint32_t d>
 static inline Vec16uc operator / (Vec16uc const & a, Const_uint_t<d>) {
     const uint8_t d0 = uint8_t(d);                                 // truncate d to 16 bits
     Static_error_check<(d0 != 0)> Dividing_by_zero;                  // Error message if dividing by zero
-    if (d0 == 1) return x;                                           // divide by 1
+    if (d0 == 1) return a;                                           // divide by 1
     pack128_16ui_t div = nsimd::set1<pack128_16ui_t>(d0);
-    return nsimd::div(x, div);
+    return nsimd::div(pack128_16ui_t(a), div);
 }
 
 // define Vec16uc a / const_int(d)
@@ -3522,19 +3533,19 @@ static inline int horizontal_find_first(Vec2qb const & x) {
 
 // Count the number of elements that are true
 static inline uint32_t horizontal_count(Vec16cb const & x) {
-    return nsind::nbtrue(x);
+    return nsimd::nbtrue(packl128_16i_t(x));
 }
 
 static inline uint32_t horizontal_count(Vec8sb const & x) {
-    return nsind::nbtrue(x);
+    return nsimd::nbtrue(packl128_8i_t(x));
 }
 
 static inline uint32_t horizontal_count(Vec4ib const & x) {
-    return nsind::nbtrue(x);
+    return nsimd::nbtrue(packl128_4i_t(x));
 }
 
 static inline uint32_t horizontal_count(Vec2qb const & x) {
-    return nsind::nbtrue(x);
+    return nsimd::nbtrue(packl128_2i_t(x));
 }
 
 
